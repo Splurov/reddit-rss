@@ -8,7 +8,7 @@ reddit-rss helps you to generate RSS feed for your reddit “new” section
 * `cp storage.json.example storage.json`
 * edit config.json with your preferences, keys, login and password
 * run: `node index.json`
-* setup crontab to regular updates
+* setup crontab for regular updates
  
 ## Links
 
