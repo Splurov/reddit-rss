@@ -1,0 +1,18 @@
+{
+  "name": "reddit-rss",
+  "version": "0.0.1",
+  "description": "Generate RSS Feed for reddit",
+  "main": "index.js",
+  "dependencies": {
+    "snoocore": "~0.2.0",
+    "html-entities": "~1.0.10",
+    "marked": "~0.3.2",
+    "numpad": "0.0.1"
+  },
+  "devDependencies": {},
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "author": "Mikhail Kalashnik <splurov@gmail.com> (http://mkln.ru/en/)",
+  "license": "Creative Commons Attribution 4.0 International"
+}
