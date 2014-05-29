@@ -35,6 +35,27 @@ var reddit = new Snoocore({
     'userAgent': packageJson.name + '/' + packageJson.version + ' by ' + config.username
 });
 
+var logger = {
+    '_log': function(type, message) {
+        console.log('[' + type + ']' +
+                    '[' + (new Date().toUTCString()) + '] ' +
+                    message + ' ' +
+                    '(before: ' + before + ') ' +
+                    '(posts: ' + posts.length + ') ' +
+                    '(requests: ' + requests + ') ' +
+                    '(max time: ' + maxTime + ')');
+    },
+    'logError': function(message) {
+        this._log('ERROR', message);
+    },
+    'logInfo': function(message) {
+        this._log('info', message);
+    },
+    'logDebug': function(message) {
+        this._log('debug', message);
+    }
+};
+
 var getRssDate = function(date) {
     var months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
     var days = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
@@ -110,7 +131,7 @@ var makeRss = function() {
     xml.push('</channel>');
     xml.push('</rss>');
 
-    fs.writeFileSync(config.rssFilePath, xml.join(''));
+    return xml.join('');
 };
 
 var finish = function() {
@@ -123,26 +144,20 @@ var finish = function() {
     }
     storage.posts = allPosts;
 
-    makeRss();
+    var rssContent = makeRss();
+    fs.writeFileSync(config.rssFilePath, rssContent);
 
     storage.before = before;
     fs.writeFileSync(storageFilePath, JSON.stringify(storage));
-    console.log('[info] Successfully updated, new before: ' +
-                before +
-                ', requests: ' +
-                requests +
-                ', items length: ' +
-                posts.length);
+    logger.logInfo('Successfully updated');
 };
 
 var getUpdates = function() {
     requests++;
     if (requests > config.maxRequests) {
-        console.error('[ERROR] Too many requests, before: ' + before);
+        logger.logError('Too many requests');
         return;
     }
-
-    var isFinish = false;
 
     var params = {
         'limit': 100
@@ -151,31 +166,32 @@ var getUpdates = function() {
         params.before = before;
     }
 
+    logger.logDebug('Get updates');
+
     reddit.new(params).then(function(items) {
-        if (!items.data || !items.data.children || !items.data.children.length) {
-            console.error('[ERROR] No data, before: ' + before + ', requests: ' + requests);
+        var itemsLength;
+        try {
+            itemsLength = items.data.children.length;
+        } catch(e) {
+            logger.logError('No data');
             return;
         }
 
-        var itemsLength = items.data.children.length;
-        while (--itemsLength) {
-            var item = items.data.children.pop().data;
+        for (var i = itemsLength - 1; i >= 0; i--) {
+            var item = items.data.children[i].data;
             if (item.created_utc > maxTime) {
-                isFinish = true;
-                break;
-            } else {
-                before = item.name;
-                if (item.score >= config.minScore || item.num_comments >= config.minComments) {
-                    posts.push(item);
-                }
+                logger.logDebug('Finish on item {time: ' + item.created_utc + '} {item name: ' + item.name + '}');
+                finish();
+                return;
+            }
+
+            before = item.name;
+            if (item.score >= config.minScore || item.num_comments >= config.minComments) {
+                posts.push(item);
             }
         }
 
-        if (isFinish) {
-            finish();
-        } else {
-            getUpdates();
-        }
+        getUpdates();
     });
 };
 
