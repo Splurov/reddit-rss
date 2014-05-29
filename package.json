@@ -6,8 +6,7 @@
   "dependencies": {
     "snoocore": "~0.2.0",
     "html-entities": "~1.0.10",
-    "marked": "~0.3.2",
-    "numpad": "0.0.1"
+    "marked": "~0.3.2"
   },
   "devDependencies": {},
   "scripts": {

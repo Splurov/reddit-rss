@@ -1,47 +1,43 @@
 'use strict';
 
 var fs = require('fs');
+var util = require('util');
 
 var Snoocore = require('snoocore');
 var Entities = require('html-entities').XmlEntities;
 var marked = require('marked');
-var numpad = require('numpad');
 
 var packageJson = require('./package.json');
 var config = require('./config.json');
 var storage = require(config.storageFilePath);
 
+
 marked.setOptions({
-    gfm: true,
     tables: false,
-    breaks: false,
-    pedantic: false,
     sanitize: true,
-    smartLists: true,
-    smartypants: false
+    smartLists: true
 });
-
-var currentTime = Math.round(new Date().getTime() / 1000);
-var maxTime = currentTime - (config.maxHoursAgo * 3600);
-
-var before = storage.before || null;
-var posts = [];
-var requests = 0;
-
 
 var reddit = new Snoocore({
     'userAgent': packageJson.name + '/' + packageJson.version + ' by ' + config.username
 });
 
+
+var maxTime = Math.round(new Date().getTime() / 1000) - (config.maxHoursAgo * 3600);
+var before = storage.before || null;
+var posts = [];
+var requests = 0;
+
+
 var logger = {
     '_log': function(type, message) {
-        console.log('[' + type + ']' +
-                    '[' + (new Date().toUTCString()) + '] ' +
-                    message + ' ' +
-                    '(before: ' + before + ') ' +
-                    '(posts: ' + posts.length + ') ' +
-                    '(requests: ' + requests + ') ' +
-                    '(max time: ' + maxTime + ')');
+        util.log(util.format('[%s] %s (before: %s) (posts: %s) (requests: %s) (max time: %s)',
+                             type,
+                             message,
+                             before,
+                             posts.length,
+                             requests,
+                             maxTime));
     },
     'logError': function(message) {
         this._log('ERROR', message);
@@ -50,22 +46,10 @@ var logger = {
         this._log('info', message);
     },
     'logDebug': function(message) {
-        this._log('debug', message);
+        if (config.isLogDebug) {
+            this._log('debug', message);
+        }
     }
-};
-
-var getRssDate = function(date) {
-    var months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
-    var days = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
-
-    return days[date.getUTCDay()] + ', ' +
-           numpad(date.getUTCDate(), 2) + ' ' +
-           months[date.getUTCMonth()] + ' ' +
-           date.getUTCFullYear() + ' ' +
-           numpad(date.getUTCHours(), 2) + ':' +
-           numpad(date.getUTCMinutes(), 2) + ':' +
-           numpad(date.getUTCSeconds(), 2) + ' ' +
-           'GMT';
 };
 
 var makeRss = function() {
@@ -80,7 +64,7 @@ var makeRss = function() {
     xml.push('<title>' + title + '</title>');
     xml.push('<link>' + link + '</link>');
     xml.push('<description>New posts on reddit</description>');
-    xml.push('<lastBuildDate>' + getRssDate(new Date()) + '</lastBuildDate>');
+    xml.push('<lastBuildDate>' + (new Date().toUTCString()) + '</lastBuildDate>');
     xml.push('<ttl>25</ttl>');
     xml.push('<image>' +
              '<url>' + entities.encode('http://www.redditstatic.com/reddit.com.header.png') + '</url>' +
@@ -122,7 +106,7 @@ var makeRss = function() {
         xml.push('<link>' + itemLinkEncoded + '</link>');
         xml.push('<description>' + entities.encode(description.join('')) + '</description>');
         xml.push('<guid isPermalink="true">' + itemLinkEncoded + '</guid>');
-        xml.push('<pubDate>' + getRssDate(new Date(post.created_utc * 1000)) + '</pubDate>');
+        xml.push('<pubDate>' + (new Date(post.created_utc * 1000).toUTCString()) + '</pubDate>');
         xml.push('</item>');
     });
 
@@ -146,10 +130,6 @@ var finish = function() {
     fs.writeFileSync(config.rssFilePath, rssContent);
 
     storage.before = before;
-    logger.logDebug('Storage info ' +
-                    '{before: ' + storage.before + '} ' +
-                    '{first: ' + storage.posts[0].name + '} ' +
-                    '{last: ' + storage.posts[storage.posts.length - 1].name + '}');
     fs.writeFileSync(config.storageFilePath, JSON.stringify(storage));
     logger.logInfo('Successfully updated');
 };
@@ -182,7 +162,7 @@ var getUpdates = function() {
         for (var i = itemsLength - 1; i >= 0; i--) {
             var item = items.data.children[i].data;
             if (item.created_utc > maxTime) {
-                logger.logDebug('Finish on item {time: ' + item.created_utc + '} {item name: ' + item.name + '}');
+                logger.logDebug(util.format('Finish on item {time: %s} {item name: %s}', item.created_utc, item.name));
                 finish();
                 return;
             }
@@ -203,7 +183,7 @@ reddit.auth(Snoocore.oauth.getAuthData('script', {
     consumerSecret: config.consumerSecret,
     username: config.username,
     password: config.password,
-    scope: ['identity', 'read']
+    scope: ['read']
 })).then(function() {
     getUpdates();
 });
