@@ -148,6 +148,10 @@ var finish = function() {
     fs.writeFileSync(config.rssFilePath, rssContent);
 
     storage.before = before;
+    logger.logDebug('Storage info ' +
+                    '{before: ' + storage.before + '} ' +
+                    '{first: ' + storage.posts[0].name + '} ' +
+                    '{last: ' + storage.posts[storage.posts.length - 1].name + '}');
     fs.writeFileSync(storageFilePath, JSON.stringify(storage));
     logger.logInfo('Successfully updated');
 };
