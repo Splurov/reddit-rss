@@ -7,10 +7,8 @@ var Entities = require('html-entities').XmlEntities;
 var marked = require('marked');
 var numpad = require('numpad');
 
-var storageFilePath = './storage.json';
-
 var packageJson = require('./package.json');
-var storage = require(storageFilePath);
+var storage = require('./storage.json');
 var config = require('./config.json');
 
 marked.setOptions({
@@ -152,7 +150,7 @@ var finish = function() {
                     '{before: ' + storage.before + '} ' +
                     '{first: ' + storage.posts[0].name + '} ' +
                     '{last: ' + storage.posts[storage.posts.length - 1].name + '}');
-    fs.writeFileSync(storageFilePath, JSON.stringify(storage));
+    fs.writeFileSync(config.storageFilePath, JSON.stringify(storage));
     logger.logInfo('Successfully updated');
 };
 

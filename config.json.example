@@ -5,6 +5,7 @@
     "maxHoursAgo": 23,
     "maxRssItems": 300,
     "rssFilePath": "./reddit.xml",
+    "storageFilePath": "./storage.json",
 
     "consumerKey": "",
     "consumerSecret": "",
