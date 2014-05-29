@@ -8,8 +8,8 @@ var marked = require('marked');
 var numpad = require('numpad');
 
 var packageJson = require('./package.json');
-var storage = require('./storage.json');
 var config = require('./config.json');
+var storage = require(config.storageFilePath);
 
 marked.setOptions({
     gfm: true,
