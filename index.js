@@ -102,7 +102,16 @@ var makeRss = function() {
 
         var itemLinkEncoded = entities.encode(itemLink);
         xml.push('<item>');
-        xml.push('<title>' + entities.encode('[' + post.subreddit + '] ' + post.title) + '</title>');
+
+        var postTitle = post.title;
+        if (/[^\.]\.$/.test(postTitle)) {
+            postTitle = postTitle.slice(0, -1);
+        }
+        if (post.title.toLowerCase().indexOf(post.subreddit.toLowerCase()) === -1) {
+            postTitle += ' — ' + post.subreddit;
+        }
+        xml.push('<title>' + entities.encode(postTitle) + '</title>');
+
         xml.push('<link>' + itemLinkEncoded + '</link>');
         xml.push('<description>' + entities.encode(description.join('')) + '</description>');
         xml.push('<guid isPermalink="true">' + itemLinkEncoded + '</guid>');
@@ -156,6 +165,19 @@ var getUpdates = function() {
             itemsLength = items.data.children.length;
         } catch(e) {
             logger.logError('No data');
+            return;
+        }
+
+        if (itemsLength === 0) {
+            logger.logInfo('No items, trying to obtain before from storage');
+            if (storage.posts.length >= 2) {
+                before = storage.posts[storage.posts.length - 2].name;
+                logger.logInfo('New before');
+                getUpdates();
+            } else {
+                logger.logError('Can not obtain before from storage');
+                finish();
+            }
             return;
         }
 
