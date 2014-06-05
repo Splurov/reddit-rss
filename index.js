@@ -2,6 +2,7 @@
 
 var fs = require('fs');
 var util = require('util');
+var url = require('url');
 
 var Snoocore = require('snoocore');
 var Entities = require('html-entities').XmlEntities;
@@ -77,21 +78,38 @@ var makeRss = function() {
 
         var description = [];
 
-        var isImageUrl = false;
-        if (!post.is_self && /\.(png|jpg|gif|jpeg)$/i.test(post.url)) {
-            isImageUrl = true;
-            description.push('<p><a href="' + post.url + '"><img src="' + post.url + '" width="320"/></a></p>');
-        } else if (post.thumbnail && ['self', 'default'].indexOf(post.thumbnail) === -1) {
-            description.push('<p><a href="' + (post.is_self ? itemLink : post.url) + '"><img src="' + post.thumbnail + '"/></a></p>');
+        var urlParsed;
+        if (!post.is_self) {
+            urlParsed = url.parse(post.url, false, true);
         }
+
+        var imageUrl;
+        if (urlParsed) {
+            if (/\.(png|jpe?g|gif|svg)$/i.test(urlParsed.pathname)) {
+                imageUrl = post.url;
+            } else if (urlParsed.host === 'imgur.com' && /^\/[a-z0-9]+$/i.test(urlParsed.pathname)) {
+                imageUrl = 'http://i.imgur.com' + urlParsed.pathname + '.png';
+            }
+        }
+
+        if (imageUrl) {
+            description.push('<p><a href="' + post.url + '"><img src="' + imageUrl + '" width="320"/></a></p>');
+        } else if (post.thumbnail && ['self', 'default'].indexOf(post.thumbnail) === -1) {
+            description.push('<p><a href="' + (post.is_self ? itemLink : post.url) + '">' +
+                             '<img src="' + post.thumbnail + '"/>' +
+                             '</a></p>');
+        }
+
         if (post.selftext) {
             description.push(marked(post.selftext));
         }
+
+        if (urlParsed && !imageUrl) {
+            description.push('<p><a href="' + post.url + '">[' + post.url + ']</a></p>');
+        }
+
         description.push('<p>');
         description.push('<big>');
-        if (!post.is_self && !isImageUrl) {
-            description.push('<a href="' + post.url + '">[external link]</a> ');
-        }
         description.push('<a href="' + itemLink + '">[' +
                          post.num_comments + ' comment' +
                          (post.num_comments !== 1 ? 's' : '') +
