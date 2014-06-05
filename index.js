@@ -171,7 +171,7 @@ var getUpdates = function() {
         if (itemsLength === 0) {
             logger.logInfo('No items, trying to obtain before from storage');
             if (storage.posts.length >= 2) {
-                before = storage.posts[storage.posts.length - 2].name;
+                before = storage.posts[1].name;
                 logger.logInfo('New before');
                 getUpdates();
             } else {
