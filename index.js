@@ -2,25 +2,23 @@
 
 var fs = require('fs');
 var util = require('util');
-var url = require('url');
 
 var Snoocore = require('snoocore');
-var Entities = require('html-entities').XmlEntities;
-var marked = require('marked');
+
+var makeRss = require('./lib/make-rss');
 
 var packageJson = require('./package.json');
 var config = require('./config.json');
 var storage = require(config.storageFilePath);
 
-
-marked.setOptions({
-    tables: false,
-    sanitize: true,
-    smartLists: true
-});
-
 var reddit = new Snoocore({
     'userAgent': packageJson.name + '/' + packageJson.version + ' by ' + config.username
+});
+
+var popularityGroups = Object.keys(config.minScore).map(function(v) {
+    return parseInt(v, 10);
+}).sort(function(a, b) {
+    return a - b;
 });
 
 
@@ -53,95 +51,6 @@ var logger = {
     }
 };
 
-var makeRss = function() {
-    var entities = new Entities();
-
-    var xml = [];
-    var title = entities.encode('reddit new');
-    var link = entities.encode('http://www.reddit.com/');
-    xml.push('<?xml version="1.0"?>');
-    xml.push('<rss version="2.0">');
-    xml.push('<channel>');
-    xml.push('<title>' + title + '</title>');
-    xml.push('<link>' + link + '</link>');
-    xml.push('<description>New posts on reddit</description>');
-    xml.push('<lastBuildDate>' + (new Date().toUTCString()) + '</lastBuildDate>');
-    xml.push('<ttl>25</ttl>');
-    xml.push('<image>' +
-             '<url>' + entities.encode('http://www.redditstatic.com/reddit.com.header.png') + '</url>' +
-             '<title>' + title + '</title>' +
-             '<link>' + link + '</link>' +
-             '</image>');
-
-    storage.posts.reverse().forEach(function(post) {
-        var itemLink = 'http://www.reddit.com' + post.permalink;
-
-        var description = [];
-
-        var urlParsed;
-        if (!post.is_self) {
-            urlParsed = url.parse(post.url, false, true);
-        }
-
-        var imageUrl;
-        if (urlParsed) {
-            if (/\.(png|jpe?g|gif|svg)$/i.test(urlParsed.pathname)) {
-                imageUrl = post.url;
-            } else if (urlParsed.host === 'imgur.com' && /^\/[a-z0-9]+$/i.test(urlParsed.pathname)) {
-                imageUrl = 'http://i.imgur.com' + urlParsed.pathname + '.png';
-            }
-        }
-
-        if (imageUrl) {
-            description.push('<p><a href="' + post.url + '"><img src="' + imageUrl + '" width="320"/></a></p>');
-        } else if (post.thumbnail && ['self', 'default'].indexOf(post.thumbnail) === -1) {
-            description.push('<p><a href="' + (post.is_self ? itemLink : post.url) + '">' +
-                             '<img src="' + post.thumbnail + '"/>' +
-                             '</a></p>');
-        }
-
-        if (post.selftext) {
-            description.push(marked(post.selftext));
-        }
-
-        if (urlParsed && !imageUrl) {
-            description.push('<p><a href="' + post.url + '">[' + post.url + ']</a></p>');
-        }
-
-        description.push('<p>');
-        description.push('<big>');
-        description.push('<a href="' + itemLink + '">[' +
-                         post.num_comments + ' comment' +
-                         (post.num_comments !== 1 ? 's' : '') +
-                         ']</a> ');
-        description.push('</big>');
-        description.push('[' + (post.score > 0 ? '+' : '') + post.score + ']');
-        description.push('</p>');
-
-        var itemLinkEncoded = entities.encode(itemLink);
-        xml.push('<item>');
-
-        var postTitle = post.title;
-        if (/[^\.]\.$/.test(postTitle)) {
-            postTitle = postTitle.slice(0, -1);
-        }
-        if (post.title.toLowerCase().indexOf(post.subreddit.toLowerCase()) === -1) {
-            postTitle += ' — ' + post.subreddit;
-        }
-        xml.push('<title>' + entities.encode(postTitle) + '</title>');
-
-        xml.push('<link>' + itemLinkEncoded + '</link>');
-        xml.push('<description>' + entities.encode(description.join('')) + '</description>');
-        xml.push('<guid isPermalink="true">' + itemLinkEncoded + '</guid>');
-        xml.push('<pubDate>' + (new Date(post.created_utc * 1000).toUTCString()) + '</pubDate>');
-        xml.push('</item>');
-    });
-
-    xml.push('</channel>');
-    xml.push('</rss>');
-
-    return xml.join('');
-};
 
 var finish = function() {
     var allPosts = (storage.posts || []).concat(posts);
@@ -153,7 +62,7 @@ var finish = function() {
     }
     storage.posts = allPosts;
 
-    var rssContent = makeRss();
+    var rssContent = makeRss(storage.posts);
     fs.writeFileSync(config.rssFilePath, rssContent);
 
     storage.before = before;
@@ -161,7 +70,7 @@ var finish = function() {
     logger.logInfo('Successfully updated');
 };
 
-var getUpdates = function() {
+var getUpdates = function(subreddits) {
     requests++;
     if (requests > config.maxRequests) {
         logger.logError('Too many requests');
@@ -177,7 +86,7 @@ var getUpdates = function() {
 
     logger.logDebug('Get updates');
 
-    reddit.new(params).then(function(items) {
+    reddit('new').get(params).then(function(items) {
         var itemsLength;
         try {
             itemsLength = items.data.children.length;
@@ -191,7 +100,7 @@ var getUpdates = function() {
             if (storage.posts.length >= 2) {
                 before = storage.posts[1].name;
                 logger.logInfo('New before');
-                getUpdates();
+                getUpdates(subreddits);
             } else {
                 logger.logError('Can not obtain before from storage');
                 finish();
@@ -208,22 +117,63 @@ var getUpdates = function() {
             }
 
             before = item.name;
-            if (item.score >= config.minScore || item.num_comments >= config.minComments) {
+
+            var minScore = config.minScore[popularityGroups[0]];
+            var minComments = config.minComments[popularityGroups[0]];
+            if (subreddits[item.subreddit]) {
+                minScore = config.minScore[subreddits[item.subreddit]];
+                minComments = config.minComments[subreddits[item.subreddit]];
+            }
+
+            if (item.score >= minScore || item.num_comments >= minComments) {
                 posts.push(item);
             }
         }
 
-        getUpdates();
+        getUpdates(subreddits);
+    }, function(error) {
+        logger.logError(util.format('Can not get new: %s', error));
     });
 };
 
+var getPopularityGroup = function(count) {
+    var selectedGroup = popularityGroups[0];
+
+    popularityGroups.some(function(group) {
+        if (count <= group) {
+            selectedGroup = group;
+            return true;
+        }
+    });
+
+    return selectedGroup;
+};
 
 reddit.auth(Snoocore.oauth.getAuthData('script', {
     consumerKey: config.consumerKey,
     consumerSecret: config.consumerSecret,
     username: config.username,
     password: config.password,
-    scope: ['read']
+    scope: ['read', 'mysubreddits']
 })).then(function() {
-    getUpdates();
+    reddit.subreddits.mine.$where.get({$where: 'subscriber', 'limit': 100}).then(function(responseJson) {
+        var items;
+        try {
+            items = responseJson.data.children;
+        } catch(e) {
+            logger.logError('No subreddits');
+            return;
+        }
+
+        logger.logDebug(util.format('Got subreddits {length: %s}', items.length));
+
+        var subreddits = {};
+        items.forEach(function(item) {
+            subreddits[item.data.display_name] = getPopularityGroup(item.data.subscribers);
+        });
+
+        getUpdates(subreddits);
+    }, function(error) {
+        logger.logError(util.format('Can not get subreddits: %s', error));
+    });
 });
