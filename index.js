@@ -134,7 +134,9 @@ var getUpdates = function(subreddits) {
                 minComments = config.minComments[subreddits[item.subreddit]];
             }
 
-            if (!blacklistRe.test(item.title) && (item.score >= minScore || item.num_comments >= minComments)) {
+            if (blacklistRe.test(item.title)) {
+                logger.logInfo('blacklisted: ' + item.title + ' — ' + item.subreddit);
+            } else if (item.score >= minScore || item.num_comments >= minComments) {
                 posts.push(item);
             }
         }
