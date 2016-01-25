@@ -4,6 +4,7 @@ var fs = require('fs');
 var util = require('util');
 
 var Snoocore = require('snoocore');
+var nodemailer = require('nodemailer');
 
 var makeRss = require('./lib/make-rss');
 
@@ -46,17 +47,39 @@ var blacklistRe = new RegExp('(?:' + BLACKLIST_STRINGS.map(function(string) {
 
 
 var logger = {
+    '_getErrorText': function(type, message) {
+        return util.format(
+            '[%s] %s (before: %s) (posts: %s) (requests: %s) (max time: %s)',
+            type,
+            message,
+            before,
+            posts.length,
+            requests,
+            maxTime
+        );
+    },
     '_log': function(type, message) {
-        util.log(util.format('[%s] %s (before: %s) (posts: %s) (requests: %s) (max time: %s)',
-                             type,
-                             message,
-                             before,
-                             posts.length,
-                             requests,
-                             maxTime));
+        util.log(this._getErrorText(type, message));
     },
     'logError': function(message) {
-        this._log('ERROR', message);
+        var errorString = this._getErrorText('ERROR', message);
+        util.log(errorString);
+        if (config.mailSmtpTransportUrl) {
+            var transporter = nodemailer.createTransport(config.mailSmtpTransportUrl);
+            transporter.sendMail({
+                'from': config.mailFrom,
+                'to': config.mailTo,
+                'subject': 'Reddit RSS Error',
+                'text': errorString
+            }, function(error, info) {
+                if (error) {
+                    logger.logInfo('Error while sending email {' + error + '}');
+                    return;
+                }
+
+                logger.logInfo('Message sent {' + info.response + '}');
+            });
+        }
     },
     'logInfo': function(message) {
         this._log('info', message);

@@ -26,5 +26,9 @@
     "consumerKey": "",
     "consumerSecret": "",
     "username": "",
-    "password": ""
+    "password": "",
+
+    "mailSmtpTransportUrl": "smtps://example%40example.com:password@smtp.example.com",
+    "mailFrom": "RSS Errors <example@example.com>",
+    "mailTo": "me@example.com"
 }
