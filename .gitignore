@@ -4,3 +4,4 @@ config.json
 storage.json
 reddit.xml
 cron-run.log
+node_modules
