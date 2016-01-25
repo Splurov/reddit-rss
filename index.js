@@ -12,7 +12,15 @@ var config = require('./config.json');
 var storage = require(config.storageFilePath);
 
 var reddit = new Snoocore({
-    'userAgent': packageJson.name + '/' + packageJson.version + ' by ' + config.username
+    'userAgent': packageJson.name + '/' + packageJson.version + ' by ' + config.username,
+    'oauth': {
+        'type': 'script',
+        'key': config.consumerKey,
+        'secret': config.consumerSecret,
+        'username': config.username,
+        'password': config.password,
+        'scope': ['read', 'mysubreddits']
+    }
 });
 
 var popularityGroups = Object.keys(config.minScore).map(function(v) {
@@ -95,7 +103,7 @@ var getUpdates = function(subreddits) {
 
     logger.logDebug('Get updates');
 
-    reddit('new').get(params).then(function(items) {
+    reddit('/new').get(params).then(function(items) {
         var itemsLength;
         try {
             itemsLength = items.data.children.length;
@@ -160,31 +168,23 @@ var getPopularityGroup = function(count) {
     return selectedGroup;
 };
 
-reddit.auth(Snoocore.oauth.getAuthData('script', {
-    consumerKey: config.consumerKey,
-    consumerSecret: config.consumerSecret,
-    username: config.username,
-    password: config.password,
-    scope: ['read', 'mysubreddits']
-})).then(function() {
-    reddit.subreddits.mine.$where.get({$where: 'subscriber', 'limit': 100}).then(function(responseJson) {
-        var items;
-        try {
-            items = responseJson.data.children;
-        } catch(e) {
-            logger.logError('No subreddits');
-            return;
-        }
+reddit('/subreddits/mine/subscriber').get({'limit': 100}).then(function(responseJson) {
+    var items;
+    try {
+        items = responseJson.data.children;
+    } catch(e) {
+        logger.logError('No subreddits');
+        return;
+    }
 
-        logger.logDebug(util.format('Got subreddits {length: %s}', items.length));
+    logger.logDebug(util.format('Got subreddits {length: %s}', items.length));
 
-        var subreddits = {};
-        items.forEach(function(item) {
-            subreddits[item.data.display_name] = getPopularityGroup(item.data.subscribers);
-        });
-
-        getUpdates(subreddits);
-    }, function(error) {
-        logger.logError(util.format('Can not get subreddits: %s', error));
+    var subreddits = {};
+    items.forEach(function(item) {
+        subreddits[item.data.display_name] = getPopularityGroup(item.data.subscribers);
     });
+
+    getUpdates(subreddits);
+}, function(error) {
+    logger.logError(util.format('Can not get subreddits: %s', error));
 });

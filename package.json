@@ -4,9 +4,9 @@
   "description": "Generate RSS Feed for reddit",
   "main": "index.js",
   "dependencies": {
-    "snoocore": ">=1.2.0",
-    "html-entities": ">=1.0.10",
-    "marked": ">=0.3.2"
+    "snoocore": "~3.1.2",
+    "html-entities": "~1.2.0",
+    "marked": "~0.3.5"
   },
   "devDependencies": {},
   "scripts": {
