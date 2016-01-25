@@ -4,6 +4,7 @@ reddit-rss helps you to generate RSS feed for your reddit “new” section
 
 ## Installation
 
+* `npm install`
 * `cp config.json.example config.json`
 * `cp storage.json.example storage.json`
 * edit config.json with your preferences, keys, login and password
