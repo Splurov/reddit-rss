@@ -65,12 +65,13 @@ var logger = {
         var errorString = this._getErrorText('ERROR', message);
         util.log(errorString);
         if (config.mailSmtpTransportUrl) {
+            var safeErrorString = errorString.replace(/"password": "[^"]+"/, '"password": "<HIDDEN>"');
             var transporter = nodemailer.createTransport(config.mailSmtpTransportUrl);
             transporter.sendMail({
                 'from': config.mailFrom,
                 'to': config.mailTo,
                 'subject': 'Reddit RSS Error',
-                'text': errorString
+                'text': safeErrorString
             }, function(error, info) {
                 if (error) {
                     logger.logInfo('Error while sending email {' + error + '}');
