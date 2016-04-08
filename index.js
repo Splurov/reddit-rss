@@ -174,7 +174,7 @@ var getUpdates = function(subreddits) {
         }
 
         getUpdates(subreddits);
-    }, function(error) {
+    }).catch(function(error) {
         logger.logError(util.format('Can not get new: %s', error));
     });
 };
@@ -209,6 +209,6 @@ reddit('/subreddits/mine/subscriber').get({'limit': 100}).then(function(response
     });
 
     getUpdates(subreddits);
-}, function(error) {
+}).catch(function(error) {
     logger.logError(util.format('Can not get subreddits: %s', error));
 });
