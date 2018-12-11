@@ -142,13 +142,6 @@ var getUpdates = function(subreddits) {
 
         for (var i = itemsLength - 1; i >= 0; i--) {
             var item = items.data.children[i].data;
-            if (item.created_utc > maxTime) {
-                logger.logDebug(util.format('Finish on item {time: %s} {item name: %s}', item.created_utc, item.name));
-                finish();
-                return;
-            }
-
-            before = item.name;
 
             var minScore = config.minScore[popularityGroups[0]];
             var minComments = config.minComments[popularityGroups[0]];
@@ -159,7 +152,13 @@ var getUpdates = function(subreddits) {
 
             if (item.score >= minScore || item.num_comments >= minComments) {
                 posts.push(item);
+            } else if (item.created_utc > maxTime) {
+                logger.logDebug(util.format('Finish on item {time: %s} {item name: %s}', item.created_utc, item.name));
+                finish();
+                return;
             }
+
+            before = item.name;
         }
 
         getUpdates(subreddits);
