@@ -36,15 +36,6 @@ var before = storage.before || null;
 var posts = [];
 var requests = 0;
 
-var BLACKLIST_STRINGS = [
-    '[sponsor]'
-];
-
-var blacklistRe = new RegExp('(?:' + BLACKLIST_STRINGS.map(function(string) {
-    // escape for regexp
-    return string.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
-}).join('|') + ')', 'i');
-
 
 var logger = {
     '_getErrorText': function(type, message) {
@@ -166,9 +157,7 @@ var getUpdates = function(subreddits) {
                 minComments = config.minComments[subreddits[item.subreddit]];
             }
 
-            if (blacklistRe.test(item.title)) {
-                logger.logInfo('blacklisted: ' + item.title + ' — ' + item.subreddit);
-            } else if (item.score >= minScore || item.num_comments >= minComments) {
+            if (item.score >= minScore || item.num_comments >= minComments) {
                 posts.push(item);
             }
         }
