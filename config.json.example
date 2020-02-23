@@ -30,5 +30,7 @@
 
     "mailSmtpTransportUrl": "smtps://example%40example.com:password@smtp.example.com",
     "mailFrom": "RSS Errors <example@example.com>",
-    "mailTo": "me@example.com"
+    "mailTo": "me@example.com",
+
+    "blacklistStrings": ["[Fluff]", "[Fan-Made]"]
 }

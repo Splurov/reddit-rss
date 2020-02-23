@@ -37,6 +37,12 @@ var posts = [];
 var requests = 0;
 
 
+var blacklistRe = new RegExp('(?:' + config.blacklistStrings.map(function(string) {
+    // escape for regexp
+    return string.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+}).join('|') + ')', 'i');
+
+
 var logger = {
     '_getErrorText': function(type, message) {
         return util.format(
@@ -150,7 +156,9 @@ var getUpdates = function(subreddits) {
                 minComments = config.minComments[subreddits[item.subreddit]];
             }
 
-            if (item.selftext !== '[deleted]' && (item.score >= minScore || item.num_comments >= minComments)) {
+            if (blacklistRe.test(item.title)) {
+                logger.logDebug('Blacklisted ' + item.name + ': ' + item.title + ' — ' + item.subreddit);
+            } else if (item.selftext !== '[deleted]' && (item.score >= minScore || item.num_comments >= minComments)) {
                 posts.push(item);
             } else if (item.created_utc > maxTime) {
                 logger.logDebug(util.format('Finish on item {time: %s} {item name: %s}', item.created_utc, item.name));
