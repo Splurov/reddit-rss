@@ -3,7 +3,7 @@
 var fs = require('fs');
 var util = require('util');
 
-var Snoocore = require('snoocore');
+var snoowrap = require('snoowrap');
 var nodemailer = require('nodemailer');
 
 var makeRss = require('./lib/make-rss');
@@ -12,16 +12,12 @@ var packageJson = require('./package.json');
 var config = require('./config.json');
 var storage = require(config.storageFilePath);
 
-var reddit = new Snoocore({
+var reddit = new snoowrap({
     'userAgent': packageJson.name + '/' + packageJson.version + ' by ' + config.username,
-    'oauth': {
-        'type': 'script',
-        'key': config.consumerKey,
-        'secret': config.consumerSecret,
-        'username': config.username,
-        'password': config.password,
-        'scope': ['read', 'mysubreddits']
-    }
+    'clientId': config.consumerKey,
+    'clientSecret': config.consumerSecret,
+    'username': config.username,
+    'password': config.password,
 });
 
 var popularityGroups = Object.keys(config.minScore).map(function(v) {
@@ -124,15 +120,8 @@ var getUpdates = function(subreddits) {
 
     logger.logDebug('Get updates');
 
-    reddit('/new').get(params).then(function(items) {
-        var itemsLength;
-        try {
-            itemsLength = items.data.children.length;
-        } catch(e) {
-            logger.logError('No data');
-            return;
-        }
-
+    reddit.getNew(params).then(function(items) {
+        var itemsLength = items.length;
         if (itemsLength === 0) {
             logger.logInfo('No items, trying to obtain before from storage');
             if (storage.posts.length >= 2) {
@@ -147,7 +136,7 @@ var getUpdates = function(subreddits) {
         }
 
         for (var i = itemsLength - 1; i >= 0; i--) {
-            var item = items.data.children[i].data;
+            var item = items[i];
 
             var minScore = config.minScore[popularityGroups[0]];
             var minComments = config.minComments[popularityGroups[0]];
@@ -171,6 +160,8 @@ var getUpdates = function(subreddits) {
 
         getUpdates(subreddits);
     }).catch(function(error) {
+        console.dir(error);
+        return;
         logger.logError(util.format('Can not get new: %s', error));
     });
 };
@@ -188,20 +179,12 @@ var getPopularityGroup = function(count) {
     return selectedGroup;
 };
 
-reddit('/subreddits/mine/subscriber').get({'limit': 100}).then(function(responseJson) {
-    var items;
-    try {
-        items = responseJson.data.children;
-    } catch(e) {
-        logger.logError('No subreddits');
-        return;
-    }
-
+reddit.getSubscriptions({'limit': 100}).then(function(items) {
     logger.logDebug(util.format('Got subreddits {length: %s}', items.length));
 
     var subreddits = {};
     items.forEach(function(item) {
-        subreddits[item.data.display_name] = getPopularityGroup(item.data.subscribers);
+        subreddits[item.display_name] = getPopularityGroup(item.subscribers);
     });
 
     getUpdates(subreddits);
