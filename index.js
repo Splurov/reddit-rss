@@ -140,13 +140,13 @@ var getUpdates = function(subreddits) {
 
             var minScore = config.minScore[popularityGroups[0]];
             var minComments = config.minComments[popularityGroups[0]];
-            if (subreddits[item.subreddit]) {
-                minScore = config.minScore[subreddits[item.subreddit]];
-                minComments = config.minComments[subreddits[item.subreddit]];
+            if (subreddits[item.subreddit.display_name]) {
+                minScore = config.minScore[subreddits[item.subreddit.display_name]];
+                minComments = config.minComments[subreddits[item.subreddit.display_name]];
             }
 
             if (blacklistRe.test(item.title)) {
-                logger.logDebug('Blacklisted ' + item.name + ': ' + item.title + ' — ' + item.subreddit);
+                logger.logDebug('Blacklisted ' + item.name + ': ' + item.title + ' — ' + item.subreddit.display_name);
             } else if (item.selftext !== '[deleted]' && (item.score >= minScore || item.num_comments >= minComments)) {
                 posts.push(item);
             } else if (item.created_utc > maxTime) {
@@ -160,8 +160,6 @@ var getUpdates = function(subreddits) {
 
         getUpdates(subreddits);
     }).catch(function(error) {
-        console.dir(error);
-        return;
         logger.logError(util.format('Can not get new: %s', error));
     });
 };
