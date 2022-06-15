@@ -104,6 +104,8 @@ var finish = function() {
     logger.logInfo('Successfully updated');
 };
 
+let retries = 0;
+
 var getUpdates = function(subreddits) {
     requests++;
     if (requests > config.maxRequests) {
@@ -123,9 +125,10 @@ var getUpdates = function(subreddits) {
     reddit.getNew(params).then(function(items) {
         var itemsLength = items.length;
         if (itemsLength === 0) {
-            logger.logInfo('No items, trying to obtain before from storage');
-            if (storage.posts.length >= 2) {
-                before = storage.posts[1].name;
+            logger.logInfo(`No items, trying to obtain before from storage (${retries} retries)`);
+            if (storage.posts.length >= (retries + 2)) {
+                retries++;
+                before = storage.posts[retries].name;
                 logger.logInfo('New before');
                 getUpdates(subreddits);
             } else {
