@@ -150,7 +150,7 @@ var getUpdates = function(subreddits) {
 
             if (blacklistRe.test(item.title)) {
                 logger.logDebug('Blacklisted ' + item.name + ': ' + item.title + ' — ' + item.subreddit.display_name);
-            } else if (item.selftext !== '[deleted]' && (item.score >= minScore || item.num_comments >= minComments)) {
+            } else if (item.selftext !== '[deleted]' && item.score > 0 && (item.score >= minScore || item.num_comments >= minComments)) {
                 posts.push(item);
             } else if (item.created_utc > maxTime) {
                 logger.logDebug(util.format('Finish on item {time: %s} {item name: %s}', item.created_utc, item.name));
