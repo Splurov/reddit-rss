@@ -139,20 +139,20 @@ var getUpdates = function(subreddits) {
         }
 
         for (var i = itemsLength - 1; i >= 0; i--) {
-            var item = items[i];
+            var item = items[i].toJSON();
 
             var minScore = config.minScore[popularityGroups[0]];
             var minComments = config.minComments[popularityGroups[0]];
-            if (subreddits[item.subreddit.display_name]) {
-                minScore = config.minScore[subreddits[item.subreddit.display_name]];
-                minComments = config.minComments[subreddits[item.subreddit.display_name]];
+            if (subreddits[item.subreddit]) {
+                minScore = config.minScore[subreddits[item.subreddit]];
+                minComments = config.minComments[subreddits[item.subreddit]];
             }
 
             if (blacklistRe.test(item.title)) {
-                logger.logDebug('Blacklisted ' + item.name + ': ' + item.title + ' — ' + item.subreddit.display_name);
+                logger.logDebug('Blacklisted ' + item.name + ': ' + item.title + ' — ' + item.subreddit);
             } else if (item.selftext !== '[deleted]' &&
                        item.score > 0 &&
-                       (config.ignoreMinRulesForSubs.includes(item.subreddit.display_name.toLowerCase()) ||
+                       (config.ignoreMinRulesForSubs.includes(item.subreddit.toLowerCase()) ||
                         item.score >= minScore ||
                         item.num_comments >= minComments)) {
                 posts.push(item);
