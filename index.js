@@ -168,6 +168,7 @@ var getUpdates = function(subreddits) {
         getUpdates(subreddits);
     }).catch(function(error) {
         logger.logError(util.format('Can not get new: %s', error));
+        console.error(error);
     });
 };
 
