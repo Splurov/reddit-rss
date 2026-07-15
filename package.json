@@ -3,6 +3,9 @@
   "version": "0.0.1",
   "description": "Generate RSS Feed for reddit",
   "main": "index.js",
+  "engines": {
+    "node": ">=8"
+  },
   "dependencies": {
     "html-entities": "~1.2.0",
     "nodemailer": "~2.0.0",

@@ -52,11 +52,11 @@ var logger = {
         );
     },
     '_log': function(type, message) {
-        util.log(this._getErrorText(type, message));
+        console.log(this._getErrorText(type, message));
     },
     'logError': function(message) {
         var errorString = this._getErrorText('ERROR', message);
-        util.log(errorString);
+        console.log(errorString);
         if (config.mailSmtpTransportUrl) {
             var safeErrorString = errorString.replace(/"password": "[^"]+"/, '"password": "<HIDDEN>"');
             var transporter = nodemailer.createTransport(config.mailSmtpTransportUrl);
