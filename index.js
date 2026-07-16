@@ -33,6 +33,16 @@ var reddit = new RedditClient({
     'password': config.password,
 });
 
+var formatLogTime = function(date) {
+    var monthNames = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+    var pad = function(number) {
+        return number < 10 ? '0' + number : String(number);
+    };
+
+    return date.getDate() + ' ' + monthNames[date.getMonth()] + ' ' +
+        pad(date.getHours()) + ':' + pad(date.getMinutes()) + ':' + pad(date.getSeconds());
+};
+
 var logger = {
     '_getErrorText': function(type, message, postDetails) {
         return util.format(
@@ -48,11 +58,11 @@ var logger = {
         );
     },
     '_log': function(type, message, postDetails) {
-        console.log(this._getErrorText(type, message, postDetails));
+        console.log(formatLogTime(new Date()) + ' - ' + this._getErrorText(type, message, postDetails));
     },
     'logError': function(message) {
         var errorString = this._getErrorText('ERROR', message);
-        console.log(errorString);
+        console.log(formatLogTime(new Date()) + ' - ' + errorString);
         if (config.mailSmtpTransportUrl) {
             var safeErrorString = errorString.replace(/"password": "[^"]+"/, '"password": "<HIDDEN>"');
             var transporter = nodemailer.createTransport(config.mailSmtpTransportUrl);
