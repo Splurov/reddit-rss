@@ -11,8 +11,7 @@
     "nodemailer": "~2.0.0"
   },
   "scripts": {
-    "test": "node test/run.js",
-    "migrate-storage": "node migrate-storage.js"
+    "test": "node test/run.js"
   },
   "author": "Mikhail Kalashnik <splurov@gmail.com> (http://mkln.ru/en/)",
   "license": "Creative Commons Attribution 4.0 International"

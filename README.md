@@ -17,13 +17,7 @@ reddit-rss generates a separate RSS feed for every subreddit you follow and an O
 
 `rssPublicBaseUrl` must be the public URL for `rssDirectoryPath`, and `opmlPublicUrl` must be the public URL for `opmlFilePath`; RSS clients use these URLs, not local file paths.
 
-The first successful run creates the OPML and a cache of subscriptions. Later, when subscriptions change, the script creates or removes RSS files, rewrites the OPML and sends one notification to `mailTo`. If subscriptions do not change, the OPML is left untouched.
-
-## Migration
-
-`rssFilePath` and `maxRssItems` are no longer used. Add the new RSS, OPML and subscription-cache paths from `config.json.example` to an existing `config.json`. Then run `node migrate-storage.js` once before running `node index.js`.
-
-The migration creates `storage.json.legacy-backup`, converts the old `storage.posts` array into separate per-subreddit lists and keeps at most 250 posts in each list. The main script does not support the old storage format and will tell you to run the migration if it finds one. `maxRequests` limits only the number of Reddit pages fetched for new posts; loading the full subscription list does not consume this limit.
+The first successful run creates the OPML and a cache of subscriptions. Later, when subscriptions change, the script creates or removes RSS files, rewrites the OPML and sends one notification to `mailTo`. If subscriptions do not change, the OPML is left untouched. `maxRequests` limits only the number of Reddit pages fetched for new posts; loading the full subscription list does not consume this limit.
  
 ## Links
 

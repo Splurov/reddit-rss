@@ -6,8 +6,6 @@ var makeRss = require('../lib/make-rss');
 var makeOpml = require('../lib/make-opml');
 var fetchNewPosts = require('../lib/fetch-new-posts');
 var RedditClient = require('../lib/reddit-client');
-var storageUtils = require('../lib/storage');
-var migrateLegacyStorage = require('../lib/migrate-storage');
 
 var posts = [{
     'name': 't3_example',
@@ -211,40 +209,7 @@ var testRedditClientRefreshesUnauthorizedToken = function() {
     });
 };
 
-var testStorageMigration = function() {
-    var legacyPosts = [];
-    for (var number = 0; number <= 250; number++) {
-        legacyPosts.push({
-            'name': 't3_legacy_' + number,
-            'subreddit': 'JavaScript',
-            'created_utc': number
-        });
-    }
-    legacyPosts.push({
-        'name': 't3_node',
-        'subreddit': 'node',
-        'created_utc': 10
-    });
-
-    var legacyStorage = {
-        'before': 't3_saved_before',
-        'posts': legacyPosts
-    };
-    assert.throws(function() {
-        storageUtils.requireCurrentStorage(legacyStorage);
-    }, /Legacy storage format/);
-
-    var result = migrateLegacyStorage(legacyStorage);
-    assert.strictEqual(result.migrated, true);
-    assert.strictEqual(result.storage.before, 't3_saved_before');
-    assert.strictEqual(result.storage.posts.javascript.length, 250);
-    assert.strictEqual(result.storage.posts.javascript[0].name, 't3_legacy_1');
-    assert.strictEqual(result.storage.posts.node[0].name, 't3_node');
-    assert.strictEqual(storageUtils.requireCurrentStorage(result.storage), result.storage);
-};
-
 testRssAndOpml();
-testStorageMigration();
 Promise.all([
     testNewPostPagination(),
     testRecentPostsAreDeferred(),
