@@ -7,8 +7,8 @@
     "node": ">=8"
   },
   "dependencies": {
-    "html-entities": "~1.2.0",
-    "nodemailer": "~2.0.0"
+    "html-entities": "^2.6.0",
+    "nodemailer": "^9.0.3"
   },
   "scripts": {
     "test": "node test/run.js"

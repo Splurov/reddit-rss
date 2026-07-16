@@ -6,6 +6,7 @@ var makeRss = require('../lib/make-rss');
 var makeOpml = require('../lib/make-opml');
 var fetchNewPosts = require('../lib/fetch-new-posts');
 var RedditClient = require('../lib/reddit-client');
+var nodemailer = require('nodemailer');
 
 var posts = [{
     'name': 't3_example',
@@ -36,6 +37,29 @@ var testRssAndOpml = function() {
     assert(opml.indexOf('<opml version="2.0">') !== -1);
     assert(opml.indexOf('xmlUrl="https://example.com/reddit-rss/rss/r-javascript.xml"') !== -1);
     assert(opml.indexOf('htmlUrl="https://www.reddit.com/r/node/"') !== -1);
+};
+
+var testDependencyApis = function() {
+    var escapedRss = makeRss('node&xml', []);
+    assert(escapedRss.indexOf('<title>reddit / r/node&amp;xml</title>') !== -1);
+
+    var rssWithHtml = makeRss('javascript', [{
+        'name': 't3_entities',
+        'id': 'entities',
+        'subreddit': 'javascript',
+        'title': 'Quotes: " and \'',
+        'permalink': '/r/javascript/comments/entities/entities/',
+        'created_utc': 1460000000,
+        'score': 1,
+        'num_comments': 1,
+        'is_self': true,
+        'selftext_html': '&lt;p&gt;Fish &amp; chips&lt;/p&gt;'
+    }]);
+    assert(rssWithHtml.indexOf('Quotes: &quot; and &apos;') !== -1);
+    assert(rssWithHtml.indexOf('&lt;p&gt;Fish &amp; chips&lt;/p&gt;') !== -1);
+
+    var transporter = nodemailer.createTransport('smtp://localhost:2525');
+    assert.strictEqual(typeof transporter.sendMail, 'function');
 };
 
 var makePost = function(number) {
@@ -210,6 +234,7 @@ var testRedditClientRefreshesUnauthorizedToken = function() {
 };
 
 testRssAndOpml();
+testDependencyApis();
 Promise.all([
     testNewPostPagination(),
     testRecentPostsAreDeferred(),
