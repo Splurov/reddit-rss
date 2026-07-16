@@ -12,7 +12,8 @@
     "snoowrap": "^1.22.0"
   },
   "scripts": {
-    "test": "echo \"Error: no test specified\" && exit 1"
+    "test": "node test/run.js",
+    "migrate-storage": "node migrate-storage.js"
   },
   "author": "Mikhail Kalashnik <splurov@gmail.com> (http://mkln.ru/en/)",
   "license": "Creative Commons Attribution 4.0 International"

@@ -19,9 +19,12 @@
     ],
     "maxRequests": 20,
     "maxHoursAgo": 23,
-    "maxRssItems": 300,
-    "rssFilePath": "./reddit.xml",
     "storageFilePath": "./storage.json",
+    "rssDirectoryPath": "./rss",
+    "rssPublicBaseUrl": "https://example.com/reddit-rss/rss/",
+    "opmlFilePath": "./reddit.opml",
+    "opmlPublicUrl": "https://example.com/reddit-rss/reddit.opml",
+    "subscriptionsCacheFilePath": "./subscriptions.json",
 
     "isLogDebug": false,
 

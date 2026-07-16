@@ -2,9 +2,12 @@
 *.iml
 config.json
 storage.json
+storage.json.legacy-backup
+subscriptions.json
+reddit.opml
+rss/
 reddit.xml
 cron-run.log
 node_modules
 .vscode
 .DS_Store
-
