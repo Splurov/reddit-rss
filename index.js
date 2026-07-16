@@ -4,12 +4,12 @@ var fs = require('fs');
 var path = require('path');
 var util = require('util');
 
-var snoowrap = require('snoowrap');
 var nodemailer = require('nodemailer');
 
 var makeRss = require('./lib/make-rss');
 var makeOpml = require('./lib/make-opml');
 var fetchNewPosts = require('./lib/fetch-new-posts');
+var RedditClient = require('./lib/reddit-client');
 var storageUtils = require('./lib/storage');
 
 var packageJson = require('./package.json');
@@ -25,29 +25,13 @@ var popularityGroups;
 var blacklistRe;
 var ignoredMinRuleSubreddits = {};
 
-var reddit = new snoowrap({
+var reddit = new RedditClient({
     'userAgent': packageJson.name + '/' + packageJson.version + ' by ' + config.username,
     'clientId': config.consumerKey,
     'clientSecret': config.consumerSecret,
     'username': config.username,
     'password': config.password,
 });
-
-// snoowrap passes a negative delay to its timer when no request delay is configured.
-// Node.js 25 warns about this, so skip the timer when no wait is necessary.
-reddit._awaitRequestDelay = function() {
-    var now = Date.now();
-    var waitTime = Math.max(0, this._nextRequestTimestamp - now);
-    this._nextRequestTimestamp = Math.max(now, this._nextRequestTimestamp) + this._config.requestDelay;
-
-    if (waitTime === 0) {
-        return Promise.resolve();
-    }
-
-    return new Promise(function(resolve) {
-        setTimeout(resolve, waitTime);
-    });
-};
 
 var logger = {
     '_getErrorText': function(type, message, postDetails) {

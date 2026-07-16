@@ -8,8 +8,7 @@
   },
   "dependencies": {
     "html-entities": "~1.2.0",
-    "nodemailer": "~2.0.0",
-    "snoowrap": "^1.22.0"
+    "nodemailer": "~2.0.0"
   },
   "scripts": {
     "test": "node test/run.js",

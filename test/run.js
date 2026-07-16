@@ -5,6 +5,7 @@ var assert = require('assert');
 var makeRss = require('../lib/make-rss');
 var makeOpml = require('../lib/make-opml');
 var fetchNewPosts = require('../lib/fetch-new-posts');
+var RedditClient = require('../lib/reddit-client');
 var storageUtils = require('../lib/storage');
 var migrateLegacyStorage = require('../lib/migrate-storage');
 
@@ -46,14 +47,6 @@ var makePost = function(number) {
     };
 };
 
-var makeSnoowrapItem = function(post) {
-    return {
-        'toJSON': function() {
-            return post;
-        }
-    };
-};
-
 var testNewPostPagination = function() {
     var firstPage = [];
     var requests = [];
@@ -67,10 +60,10 @@ var testNewPostPagination = function() {
         'getNew': function(params) {
             requests.push(params);
             if (requests.length === 1) {
-                return Promise.resolve(firstPage.map(makeSnoowrapItem));
+                return Promise.resolve(firstPage);
             }
             if (requests.length === 2) {
-                return Promise.resolve([makeSnoowrapItem(makePost(101))]);
+                return Promise.resolve([makePost(101)]);
             }
             return Promise.resolve([]);
         }
@@ -98,9 +91,9 @@ var testRecentPostsAreDeferred = function() {
         'getNew': function(params) {
             requests.push(params);
             return Promise.resolve([
-                makeSnoowrapItem(makePost(102)),
-                makeSnoowrapItem(makePost(100)),
-                makeSnoowrapItem(makePost(99))
+                makePost(102),
+                makePost(100),
+                makePost(99)
             ]);
         }
     };
@@ -111,6 +104,110 @@ var testRecentPostsAreDeferred = function() {
         assert.strictEqual(result.posts[0].name, 't3_new_100');
         assert.strictEqual(result.before, 't3_new_100');
         assert.strictEqual(result.deferredPosts, 1);
+    });
+};
+
+var testRedditClient = function() {
+    var requests = [];
+    var client = new RedditClient({
+        'userAgent': 'reddit-rss-test',
+        'clientId': 'client-id',
+        'clientSecret': 'client-secret',
+        'username': 'username',
+        'password': 'password'
+    });
+
+    client._request = function(options) {
+        requests.push(options);
+        if (requests.length === 1) {
+            return Promise.resolve({
+                'statusCode': 200,
+                'body': JSON.stringify({'access_token': 'token-1', 'expires_in': 3600})
+            });
+        }
+        if (requests.length === 2) {
+            return Promise.resolve({
+                'statusCode': 200,
+                'body': JSON.stringify({
+                    'data': {
+                        'children': [{
+                            'data': {'name': 't5_javascript', 'display_name': 'javascript', 'subscribers': 10}
+                        }]
+                    }
+                })
+            });
+        }
+        return Promise.resolve({
+            'statusCode': 200,
+            'body': JSON.stringify({
+                'data': {
+                    'children': [{
+                        'data': makePost(1)
+                    }]
+                }
+            })
+        });
+    };
+
+    return client.getSubscriptions({'limit': 100, 'after': 't5_previous'}).then(function(subscriptions) {
+        assert.strictEqual(subscriptions[0].display_name, 'javascript');
+        assert.strictEqual(requests[0].hostname, 'www.reddit.com');
+        assert.strictEqual(requests[0].path, '/api/v1/access_token');
+        assert.strictEqual(requests[0].headers.Authorization, 'Basic Y2xpZW50LWlkOmNsaWVudC1zZWNyZXQ=');
+        assert.strictEqual(requests[0].body, 'grant_type=password&username=username&password=password');
+        assert.strictEqual(requests[1].hostname, 'oauth.reddit.com');
+        assert.strictEqual(requests[1].path, '/subreddits/mine/subscriber?limit=100&after=t5_previous');
+        assert.strictEqual(requests[1].headers.Authorization, 'Bearer token-1');
+
+        return client.getNew({'limit': 100, 'before': 't3_before'});
+    }).then(function(posts) {
+        assert.strictEqual(posts[0].name, 't3_new_1');
+        assert.strictEqual(requests.length, 3);
+        assert.strictEqual(requests[2].path, '/new?limit=100&before=t3_before');
+    });
+};
+
+var testRedditClientRefreshesUnauthorizedToken = function() {
+    var requests = [];
+    var client = new RedditClient({
+        'userAgent': 'reddit-rss-test',
+        'clientId': 'client-id',
+        'clientSecret': 'client-secret',
+        'username': 'username',
+        'password': 'password'
+    });
+
+    client._request = function(options) {
+        requests.push(options);
+        if (requests.length === 1) {
+            return Promise.resolve({
+                'statusCode': 200,
+                'body': JSON.stringify({'access_token': 'expired-token', 'expires_in': 3600})
+            });
+        }
+        if (requests.length === 2) {
+            return Promise.resolve({
+                'statusCode': 401,
+                'body': JSON.stringify({'message': 'Unauthorized'})
+            });
+        }
+        if (requests.length === 3) {
+            return Promise.resolve({
+                'statusCode': 200,
+                'body': JSON.stringify({'access_token': 'fresh-token', 'expires_in': 3600})
+            });
+        }
+        return Promise.resolve({
+            'statusCode': 200,
+            'body': JSON.stringify({'data': {'children': []}})
+        });
+    };
+
+    return client.getNew({'limit': 100}).then(function(posts) {
+        assert.deepStrictEqual(posts, []);
+        assert.strictEqual(requests.length, 4);
+        assert.strictEqual(requests[1].headers.Authorization, 'Bearer expired-token');
+        assert.strictEqual(requests[3].headers.Authorization, 'Bearer fresh-token');
     });
 };
 
@@ -148,7 +245,12 @@ var testStorageMigration = function() {
 
 testRssAndOpml();
 testStorageMigration();
-Promise.all([testNewPostPagination(), testRecentPostsAreDeferred()]).then(function() {
+Promise.all([
+    testNewPostPagination(),
+    testRecentPostsAreDeferred(),
+    testRedditClient(),
+    testRedditClientRefreshesUnauthorizedToken()
+]).then(function() {
     console.log('All tests passed');
 }).catch(function(error) {
     console.error(error);
