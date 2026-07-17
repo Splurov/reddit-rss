@@ -58,6 +58,24 @@ var testDependencyApis = function() {
     assert(rssWithHtml.indexOf('Quotes: &quot; and &apos;') !== -1);
     assert(rssWithHtml.indexOf('&lt;p&gt;Fish &amp; chips&lt;/p&gt;') !== -1);
 
+    var rssWithEmbed = makeRss('wallets', [{
+        'name': 't3_embed',
+        'id': 'embed',
+        'subreddit': 'wallets',
+        'title': 'Embedded video',
+        'permalink': '/r/wallets/comments/embed/embedded_video/',
+        'created_utc': 1460000000,
+        'score': 1,
+        'num_comments': 1,
+        'is_self': false,
+        'url': 'https://example.com/video',
+        'secure_media_embed': {
+            'content': '&lt;iframe src="https://example.com/embed?autoplay=1&amp;amp;api=1"&gt;&lt;/iframe&gt;'
+        }
+    }]);
+    assert(rssWithEmbed.indexOf('&lt;p&gt;&lt;iframe src=&quot;https://example.com/embed?autoplay=1&amp;amp;api=1&quot;&gt;&lt;/iframe&gt;&lt;/p&gt;') !== -1);
+    assert(rssWithEmbed.indexOf('&amp;lt;iframe') === -1);
+
     var transporter = nodemailer.createTransport('smtp://localhost:2525');
     assert.strictEqual(typeof transporter.sendMail, 'function');
 };
