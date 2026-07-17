@@ -17,7 +17,7 @@ reddit-rss generates a separate RSS feed for every subreddit you follow and an O
 
 `rssPublicBaseUrl` must be the public URL for `rssDirectoryPath`, and `opmlPublicUrl` must be the public URL for `opmlFilePath`; RSS clients use these URLs, not local file paths.
 
-The first successful run creates the OPML and a cache of subscriptions. Later, when subscriptions change, the script creates or removes RSS files, rewrites the OPML and sends one notification to `mailTo`. If subscriptions do not change, the OPML is left untouched. `maxRequests` limits only the number of Reddit pages fetched for new posts; loading the full subscription list does not consume this limit.
+The first successful run creates the OPML and a cache of subscriptions. Later, when subscriptions change, the script creates or removes RSS files, rewrites the OPML and sends one notification to `mailTo`. The notification includes direct URLs for newly added RSS feeds as well as the OPML URL. If subscriptions do not change, the OPML is left untouched. `maxRequests` limits only the number of Reddit pages fetched for new posts; loading the full subscription list does not consume this limit.
  
 ## Links
 

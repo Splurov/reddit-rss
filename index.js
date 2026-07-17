@@ -104,6 +104,15 @@ var getRssFilename = function(subreddit) {
     return 'r-' + subreddit + '.xml';
 };
 
+var getRssPublicUrl = function(subreddit) {
+    var baseUrl = config.rssPublicBaseUrl;
+    if (baseUrl.charAt(baseUrl.length - 1) !== '/') {
+        baseUrl += '/';
+    }
+
+    return baseUrl + getRssFilename(subreddit);
+};
+
 var getRssFilePath = function(subreddit) {
     var rssDirectory = path.resolve(config.rssDirectoryPath);
     var feedFilePath = path.resolve(rssDirectory, getRssFilename(subreddit));
@@ -445,15 +454,27 @@ var sendSubscriptionChangeEmail = function(changes) {
         return Promise.resolve();
     }
 
-    var text = [
+    var textParts = [
         'Your Reddit RSS subscription list changed.',
         '',
         'Added: ' + (changes.added.length ? changes.added.map(function(subreddit) { return 'r/' + subreddit; }).join(', ') : 'none'),
-        'Removed: ' + (changes.removed.length ? changes.removed.map(function(subreddit) { return 'r/' + subreddit; }).join(', ') : 'none'),
+        'Removed: ' + (changes.removed.length ? changes.removed.map(function(subreddit) { return 'r/' + subreddit; }).join(', ') : 'none')
+    ];
+
+    if (changes.added.length) {
+        textParts.push('', 'New RSS feeds:');
+        changes.added.forEach(function(subreddit) {
+            textParts.push('r/' + subreddit + ': ' + getRssPublicUrl(subreddit));
+        });
+    }
+
+    textParts.push(
         '',
         'Update the OPML subscription in your RSS client:',
         config.opmlPublicUrl
-    ].join('\n');
+    );
+
+    var text = textParts.join('\n');
 
     return new Promise(function(resolve, reject) {
         var transporter = nodemailer.createTransport(config.mailSmtpTransportUrl);
