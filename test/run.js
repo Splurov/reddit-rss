@@ -76,6 +76,31 @@ var testDependencyApis = function() {
     assert(rssWithEmbed.indexOf('&lt;p&gt;&lt;iframe src=&quot;https://example.com/embed?autoplay=1&amp;amp;api=1&quot;&gt;&lt;/iframe&gt;&lt;/p&gt;') !== -1);
     assert(rssWithEmbed.indexOf('&amp;lt;iframe') === -1);
 
+    var rssWithCrosspostGallery = makeRss('CitiesSkylines2', [{
+        'name': 't3_crosspost',
+        'id': 'crosspost',
+        'subreddit': 'CitiesSkylines2',
+        'title': 'Crossposted gallery',
+        'permalink': '/r/CitiesSkylines2/comments/crosspost/crossposted_gallery/',
+        'created_utc': 1460000000,
+        'score': 1,
+        'num_comments': 1,
+        'is_self': false,
+        'url': 'https://www.reddit.com/gallery/original',
+        'crosspost_parent_list': [{
+            'gallery_data': {
+                'items': [{'media_id': 'gallery-image'}]
+            },
+            'media_metadata': {
+                'gallery-image': {
+                    'e': 'Image',
+                    'p': [{'u': 'https://preview.redd.it/crosspost-gallery.jpg'}]
+                }
+            }
+        }]
+    }]);
+    assert(rssWithCrosspostGallery.indexOf('https://preview.redd.it/crosspost-gallery.jpg') !== -1);
+
     var transporter = nodemailer.createTransport('smtp://localhost:2525');
     assert.strictEqual(typeof transporter.sendMail, 'function');
 };
