@@ -512,7 +512,7 @@ var publish = function(storage, subscriptions, changes) {
 
     writeFileAtomicSync(config.storageFilePath, JSON.stringify(storage));
     if (changes.writeOpml) {
-        writeFileAtomicSync(config.subscriptionsCacheFilePath, JSON.stringify(makeSubscriptionsCache(subscriptions.list)));
+        writeFileAtomicSync(config.subscriptionsCacheFilePath, JSON.stringify(makeSubscriptionsCache(subscriptions.list), null, 2) + '\n');
     }
 
     if (!changes.hasChanges) {
