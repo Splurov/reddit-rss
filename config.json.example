@@ -15,8 +15,7 @@
         "250000": 18,
         "1000000": 19
     },
-    "ignoreMinRulesForSubs": [
-    ],
+    "minRulesForSubs": {},
     "maxRequests": 20,
     "maxHoursAgo": 23,
     "storageFilePath": "./storage.json",

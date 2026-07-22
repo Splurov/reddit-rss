@@ -11,6 +11,7 @@ var makeOpml = require('./lib/make-opml');
 var fetchNewPosts = require('./lib/fetch-new-posts');
 var RedditClient = require('./lib/reddit-client');
 var storageUtils = require('./lib/storage');
+var subredditMinRules = require('./lib/min-rules');
 
 var packageJson = require('./package.json');
 var config = require('./config.json');
@@ -23,7 +24,7 @@ var maxRequests;
 var maxTime;
 var popularityGroups;
 var blacklistRe;
-var ignoredMinRuleSubreddits = {};
+var minRulesForSubs = {};
 
 var reddit = new RedditClient({
     'userAgent': packageJson.name + '/' + packageJson.version + ' by ' + config.username,
@@ -228,12 +229,7 @@ var initializeConfiguration = function() {
         return String(string).replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
     }).join('|') + ')', 'i') : null;
 
-    (Array.isArray(config.ignoreMinRulesForSubs) ? config.ignoreMinRulesForSubs : []).forEach(function(subreddit) {
-        var normalizedSubreddit = normalizeSubreddit(subreddit);
-        if (normalizedSubreddit) {
-            ignoredMinRuleSubreddits[normalizedSubreddit] = true;
-        }
-    });
+    minRulesForSubs = subredditMinRules.normalize(config.minRulesForSubs);
 };
 
 var getPopularityGroup = function(count) {
@@ -383,15 +379,15 @@ var isEligiblePost = function(post, subscriptionsByKey, stats) {
         return false;
     }
 
-    var minScore = config.minScore[subscription.popularityGroup];
-    var minComments = config.minComments[subscription.popularityGroup];
+    var rules = subredditMinRules.getForSubreddit(minRulesForSubs, subreddit, {
+        'minScore': config.minScore[subscription.popularityGroup],
+        'minComments': config.minComments[subscription.popularityGroup]
+    });
     if (post.score <= 0) {
         stats.nonPositiveScore++;
         return false;
     }
-    if (ignoredMinRuleSubreddits[subreddit] ||
-        post.score >= minScore ||
-        post.num_comments >= minComments) {
+    if (post.score >= rules.minScore || post.num_comments >= rules.minComments) {
         stats.accepted++;
         return true;
     }

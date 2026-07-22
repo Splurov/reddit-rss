@@ -6,6 +6,7 @@ var makeRss = require('../lib/make-rss');
 var makeOpml = require('../lib/make-opml');
 var fetchNewPosts = require('../lib/fetch-new-posts');
 var RedditClient = require('../lib/reddit-client');
+var subredditMinRules = require('../lib/min-rules');
 var nodemailer = require('nodemailer');
 
 var posts = [{
@@ -103,6 +104,25 @@ var testDependencyApis = function() {
 
     var transporter = nodemailer.createTransport('smtp://localhost:2525');
     assert.strictEqual(typeof transporter.sendMail, 'function');
+};
+
+var testSubredditMinRules = function() {
+    var rulesBySubreddit = subredditMinRules.normalize({
+        'r/JavaScript': {'minScore': 20, 'minComments': 5}
+    });
+    var defaultRules = {'minScore': 7, 'minComments': 12};
+
+    assert.deepStrictEqual(rulesBySubreddit, {
+        'javascript': {'minScore': 20, 'minComments': 5}
+    });
+    assert.strictEqual(subredditMinRules.getForSubreddit(rulesBySubreddit, 'javascript', defaultRules), rulesBySubreddit.javascript);
+    assert.strictEqual(subredditMinRules.getForSubreddit(rulesBySubreddit, 'node', defaultRules), defaultRules);
+    assert.throws(function() {
+        subredditMinRules.normalize({'javascript': {'minScore': 20}});
+    }, /minComments is required/);
+    assert.throws(function() {
+        subredditMinRules.normalize({'javascript': {'minScore': -1, 'minComments': 5}});
+    }, /minScore must be a non-negative number/);
 };
 
 var makePost = function(number) {
@@ -278,6 +298,7 @@ var testRedditClientRefreshesUnauthorizedToken = function() {
 
 testRssAndOpml();
 testDependencyApis();
+testSubredditMinRules();
 Promise.all([
     testNewPostPagination(),
     testRecentPostsAreDeferred(),
