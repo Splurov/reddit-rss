@@ -27,6 +27,8 @@ var testRssAndOpml = function() {
     assert(emptyRss.indexOf('<title>reddit / r/javascript</title>') !== -1);
     assert(emptyRss.indexOf('<item>') === -1);
     assert(emptyRss.indexOf('<url>https://www.redditstatic.com/shreddit/assets/favicon/192x192.png</url>') !== -1);
+    assert(emptyRss.indexOf('<rss version="2.0">\n  <channel>') !== -1);
+    assert(emptyRss.endsWith('</rss>\n'));
 
     var rssWithCommunityIcon = makeRss('javascript', [], 'https://styles.redditmedia.com/icon.png?width=256&amp;s=example');
     assert(rssWithCommunityIcon.indexOf('<url>https://styles.redditmedia.com/icon.png?width=256&amp;s=example</url>') !== -1);
@@ -42,6 +44,8 @@ var testRssAndOpml = function() {
     assert(opml.indexOf('<opml version="2.0">') !== -1);
     assert(opml.indexOf('xmlUrl="https://example.com/reddit-rss/rss/r-javascript.xml"') !== -1);
     assert(opml.indexOf('htmlUrl="https://www.reddit.com/r/node/"') !== -1);
+    assert(opml.indexOf('  <body>\n    <outline') !== -1);
+    assert(opml.endsWith('</opml>\n'));
 };
 
 var testDependencyApis = function() {
