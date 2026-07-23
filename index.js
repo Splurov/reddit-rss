@@ -26,13 +26,7 @@ var popularityGroups;
 var blacklistRe;
 var minRulesForSubs = {};
 
-var reddit = new RedditClient({
-    'userAgent': packageJson.name + '/' + packageJson.version + ' by ' + config.username,
-    'clientId': config.consumerKey,
-    'clientSecret': config.consumerSecret,
-    'username': config.username,
-    'password': config.password,
-});
+var reddit;
 
 var formatLogTime = function(date) {
     var monthNames = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
@@ -91,6 +85,15 @@ var logger = {
         }
     }
 };
+
+reddit = new RedditClient({
+    'userAgent': packageJson.name + '/' + packageJson.version + ' by ' + config.username,
+    'clientId': config.consumerKey,
+    'clientSecret': config.consumerSecret,
+    'username': config.username,
+    'password': config.password,
+    'logDebug': logger.logDebug.bind(logger)
+});
 
 var normalizeSubreddit = storageUtils.normalizeSubreddit;
 var isSafeSubredditName = storageUtils.isSafeSubredditName;
@@ -506,7 +509,7 @@ var publish = function(storage, subscriptions, changes) {
         });
     }
 
-    writeFileAtomicSync(config.storageFilePath, JSON.stringify(storage));
+    writeFileAtomicSync(config.storageFilePath, JSON.stringify(storage, null, 2) + '\n');
     if (changes.writeOpml) {
         writeFileAtomicSync(config.subscriptionsCacheFilePath, JSON.stringify(makeSubscriptionsCache(subscriptions.list), null, 2) + '\n');
     }

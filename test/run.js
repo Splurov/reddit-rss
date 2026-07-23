@@ -194,12 +194,16 @@ var testRecentPostsAreDeferred = function() {
 
 var testRedditClient = function() {
     var requests = [];
+    var debugMessages = [];
     var client = new RedditClient({
         'userAgent': 'reddit-rss-test',
         'clientId': 'client-id',
         'clientSecret': 'client-secret',
         'username': 'username',
-        'password': 'password'
+        'password': 'password',
+        'logDebug': function(message) {
+            debugMessages.push(message);
+        }
     });
 
     client._request = function(options) {
@@ -243,12 +247,17 @@ var testRedditClient = function() {
         assert.strictEqual(requests[1].hostname, 'oauth.reddit.com');
         assert.strictEqual(requests[1].path, '/subreddits/mine/subscriber?limit=100&after=t5_previous');
         assert.strictEqual(requests[1].headers.Authorization, 'Bearer token-1');
+        assert.deepStrictEqual(debugMessages, [
+            'Request URL {url: https://www.reddit.com/api/v1/access_token}',
+            'Request URL {url: https://oauth.reddit.com/subreddits/mine/subscriber?limit=100&after=t5_previous}'
+        ]);
 
         return client.getNew({'limit': 100, 'before': 't3_before'});
     }).then(function(posts) {
         assert.strictEqual(posts[0].name, 't3_new_1');
         assert.strictEqual(requests.length, 3);
         assert.strictEqual(requests[2].path, '/new?limit=100&before=t3_before');
+        assert.strictEqual(debugMessages[2], 'Request URL {url: https://oauth.reddit.com/new?limit=100&before=t3_before}');
     });
 };
 
