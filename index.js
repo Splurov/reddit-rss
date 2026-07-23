@@ -496,8 +496,9 @@ var sendSubscriptionChangeEmail = function(changes) {
 };
 
 var publish = function(storage, subscriptions, changes) {
+    var crosspostIndex = makeRss.buildCrosspostIndex(storage.posts);
     subscriptions.list.forEach(function(subscription) {
-        var content = makeRss(subscription.displayName, storage.posts[subscription.key] || [], subscription.communityIcon);
+        var content = makeRss(subscription.displayName, storage.posts[subscription.key] || [], subscription.communityIcon, crosspostIndex);
         writeFileAtomicSync(getRssFilePath(subscription.key), content);
     });
 

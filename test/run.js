@@ -110,6 +110,51 @@ var testDependencyApis = function() {
     }]);
     assert(rssWithCrosspostGallery.indexOf('https://preview.redd.it/crosspost-gallery.jpg') !== -1);
 
+    var originalPost = {
+        'name': 't3_original',
+        'id': 'original',
+        'subreddit': 'originalsub',
+        'title': 'Original post',
+        'permalink': '/r/originalsub/comments/original/original_post/',
+        'created_utc': 1460000000,
+        'score': 12,
+        'num_comments': 3,
+        'is_self': false,
+        'url': 'https://example.com/original'
+    };
+    var crosspost = {
+        'name': 't3_crosspost_elsewhere',
+        'id': 'crosspost_elsewhere',
+        'subreddit': 'crosspostsub',
+        'title': 'Crosspost of original',
+        'permalink': '/r/crosspostsub/comments/crosspost_elsewhere/crosspost_of_original/',
+        'created_utc': 1460000010,
+        'score': 8,
+        'num_comments': 5,
+        'is_self': false,
+        'url': 'https://example.com/original',
+        'crosspost_parent_list': [{
+            'id': 'original'
+        }]
+    };
+    var crosspostIndex = makeRss.buildCrosspostIndex({
+        'originalsub': [originalPost],
+        'crosspostsub': [crosspost]
+    });
+    var rssWithOriginalAndCrosspost = makeRss('originalsub', [originalPost], null, crosspostIndex);
+    var rssWithOnlyCrosspost = makeRss('crosspostsub', [crosspost], null, crosspostIndex);
+    assert.strictEqual((rssWithOriginalAndCrosspost.match(/<item>/g) || []).length, 1);
+    assert(rssWithOriginalAndCrosspost.indexOf('https://reddit.com/r/originalsub/comments/original/original_post/') !== -1);
+    assert(rssWithOriginalAndCrosspost.indexOf('https://reddit.com/r/crosspostsub/comments/crosspost_elsewhere/crosspost_of_original/') !== -1);
+    assert(rssWithOriginalAndCrosspost.indexOf('5 — crosspostsub') !== -1);
+    assert.strictEqual((rssWithOnlyCrosspost.match(/<item>/g) || []).length, 0);
+
+    var unmatchedCrosspostIndex = makeRss.buildCrosspostIndex({
+        'crosspostsub': [crosspost]
+    });
+    var rssWithUnmatchedCrosspost = makeRss('crosspostsub', [crosspost], null, unmatchedCrosspostIndex);
+    assert.strictEqual((rssWithUnmatchedCrosspost.match(/<item>/g) || []).length, 1);
+
     var transporter = nodemailer.createTransport('smtp://localhost:2525');
     assert.strictEqual(typeof transporter.sendMail, 'function');
 };
