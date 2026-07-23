@@ -180,10 +180,11 @@ var requireConfigValue = function(key) {
 
 var reserveNewPostRequest = function() {
     if (newPostRequests >= maxRequests) {
-        throw new Error('Too many new-post requests (maxRequests: ' + maxRequests + ')');
+        return false;
     }
     newPostRequests++;
     requests++;
+    return true;
 };
 
 var initializeConfiguration = function() {
@@ -495,6 +496,42 @@ var sendSubscriptionChangeEmail = function(changes) {
     });
 };
 
+var sendRequestLimitEmail = function(result, filterStats) {
+    if (!config.mailSmtpTransportUrl) {
+        logger.logInfo('New-post request limit reached, but SMTP is not configured');
+        return Promise.resolve();
+    }
+
+    var text = [
+        'The Reddit RSS new-post request limit was reached.',
+        '',
+        'Partial progress was saved successfully.',
+        'Fetched mature posts: ' + result.posts.length,
+        'Posts accepted by filters: ' + filterStats.accepted,
+        'Saved before: ' + result.before,
+        'New-post requests: ' + newPostRequests + '/' + maxRequests,
+        '',
+        'The next manual or scheduled run will continue from this cursor.'
+    ].join('\n');
+
+    return new Promise(function(resolve, reject) {
+        var transporter = nodemailer.createTransport(config.mailSmtpTransportUrl);
+        transporter.sendMail({
+            'from': config.mailFrom,
+            'to': config.mailTo,
+            'subject': 'Reddit RSS: new-post request limit reached',
+            'text': text
+        }, function(error, info) {
+            if (error) {
+                reject(error);
+                return;
+            }
+            logger.logInfo('New-post request-limit email sent {' + info.response + '}');
+            resolve();
+        });
+    });
+};
+
 var publish = function(storage, subscriptions, changes) {
     subscriptions.list.forEach(function(subscription) {
         var content = makeRss(subscription.displayName, storage.posts[subscription.key] || [], subscription.communityIcon, storage.posts);
@@ -558,6 +595,12 @@ var main = function() {
             logger.logDebug('Fetched mature posts {count: ' + result.posts.length + '; deferred: ' + result.deferredPosts + '; before: ' + result.before + '}');
             var filterStats = storeNewPosts(storage, result.posts, subscriptions.byKey);
             savedPostCount = filterStats.accepted;
+            if (result.requestLimitReached) {
+                logger.logInfo(
+                    'Reached maxRequests before finishing new-post pagination; persisting partial progress {next before: ' + result.before + '}',
+                    'fetched mature posts: ' + result.posts.length + '; accepted: ' + filterStats.accepted
+                );
+            }
             logger.logDebug(util.format(
                 'Post filter {accepted: %s; below threshold: %s; non-positive score: %s; deleted: %s; blacklisted: %s; not subscribed: %s}',
                 filterStats.accepted,
@@ -571,6 +614,11 @@ var main = function() {
             return publish(storage, subscriptions, changes).then(function() {
                 before = storage.before;
                 logger.logDebug('Persisted storage {before: ' + before + '}');
+                if (result.requestLimitReached) {
+                    return sendRequestLimitEmail(result, filterStats).catch(function(error) {
+                        logger.logError('Can not send new-post request-limit email: ' + error);
+                    });
+                }
             });
         });
     }).then(function() {

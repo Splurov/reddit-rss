@@ -280,6 +280,66 @@ var testNewPostPagination = function() {
         assert.strictEqual(result.posts.length, 101);
         assert.strictEqual(result.before, 't3_new_101');
         assert.strictEqual(result.posts[result.posts.length - 1].name, 't3_new_101');
+        assert.strictEqual(result.requestLimitReached, false);
+    });
+};
+
+var testNewPostRequestLimitPreservesProgress = function() {
+    var requests = [];
+    var firstPage = [];
+    var secondPage = [];
+    for (var number = 100; number >= 1; number--) {
+        firstPage.push(makePost(number));
+    }
+    for (var secondNumber = 200; secondNumber >= 101; secondNumber--) {
+        secondPage.push(makePost(secondNumber));
+    }
+
+    var reddit = {
+        'getNew': function(params) {
+            requests.push(params);
+            if (params.before === 't3_saved_before') {
+                return Promise.resolve(firstPage);
+            }
+            if (params.before === 't3_new_100') {
+                return Promise.resolve(secondPage);
+            }
+            if (params.before === 't3_new_200') {
+                return Promise.resolve([makePost(201)]);
+            }
+            return Promise.resolve([]);
+        }
+    };
+    var remainingRequests = 2;
+    var reserveLimitedRequest = function() {
+        if (remainingRequests === 0) {
+            return false;
+        }
+        remainingRequests--;
+        return true;
+    };
+
+    return fetchNewPosts(reddit, 't3_saved_before', 1000, reserveLimitedRequest, function() {}, function() {}).then(function(firstResult) {
+        assert.strictEqual(firstResult.posts.length, 200);
+        assert.strictEqual(firstResult.before, 't3_new_200');
+        assert.strictEqual(firstResult.requestLimitReached, true);
+        assert.deepStrictEqual(requests, [
+            {'limit': 100, 'before': 't3_saved_before'},
+            {'limit': 100, 'before': 't3_new_100'}
+        ]);
+
+        return fetchNewPosts(reddit, firstResult.before, 1000, function() {
+            return true;
+        }, function() {}, function() {});
+    }).then(function(secondResult) {
+        assert.strictEqual(secondResult.posts.length, 1);
+        assert.strictEqual(secondResult.posts[0].name, 't3_new_201');
+        assert.strictEqual(secondResult.before, 't3_new_201');
+        assert.strictEqual(secondResult.requestLimitReached, false);
+        assert.deepStrictEqual(requests.slice(2), [
+            {'limit': 100, 'before': 't3_new_200'},
+            {'limit': 100, 'before': 't3_new_201'}
+        ]);
     });
 };
 
@@ -429,6 +489,7 @@ testDependencyApis();
 testSubredditMinRules();
 Promise.all([
     testNewPostPagination(),
+    testNewPostRequestLimitPreservesProgress(),
     testRecentPostsAreDeferred(),
     testRedditClient(),
     testRedditClientRefreshesUnauthorizedToken()

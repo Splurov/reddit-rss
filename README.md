@@ -29,7 +29,7 @@ reddit-rss generates a separate RSS feed for every subreddit you follow and an O
 
 Subreddit names are case-insensitive and may include the `r/` prefix. A rule needs both values, which must be non-negative numbers. For example, `{"minScore": 1, "minComments": 0}` preserves the former behavior of accepting every post with a positive score.
 
-The first successful run creates the OPML and a cache of subscriptions. Later, when subscriptions change, the script creates or removes RSS files, rewrites the OPML and sends one notification to `mailTo`. The notification includes direct URLs for newly added RSS feeds as well as the OPML URL. If subscriptions do not change, the OPML is left untouched. `maxRequests` limits only the number of Reddit pages fetched for new posts; loading the full subscription list does not consume this limit.
+The first successful run creates the OPML and a cache of subscriptions. Later, when subscriptions change, the script creates or removes RSS files, rewrites the OPML and sends one notification to `mailTo`. The notification includes direct URLs for newly added RSS feeds as well as the OPML URL. If subscriptions do not change, the OPML is left untouched. `maxRequests` limits only the number of Reddit pages fetched for new posts; loading the full subscription list does not consume this limit. When that limit is reached, the script saves its partial progress, sends a notification to `mailTo`, and continues from the saved cursor on the next manual or scheduled run.
  
 ## Links
 
