@@ -132,28 +132,88 @@ var testDependencyApis = function() {
         'score': 8,
         'num_comments': 5,
         'is_self': false,
-        'url': 'https://example.com/original',
+        'url': 'https://reddit.com/r/originalsub/comments/original/original_post/',
         'crosspost_parent_list': [{
             'id': 'original'
         }]
     };
-    var crosspostIndex = makeRss.buildCrosspostIndex({
+    var postContext = {
         'originalsub': [originalPost],
         'crosspostsub': [crosspost]
-    });
-    var rssWithOriginalAndCrosspost = makeRss('originalsub', [originalPost], null, crosspostIndex);
-    var rssWithOnlyCrosspost = makeRss('crosspostsub', [crosspost], null, crosspostIndex);
+    };
+    var rssWithOriginalAndCrosspost = makeRss('originalsub', [originalPost], null, postContext);
+    var rssWithOnlyCrosspost = makeRss('crosspostsub', [crosspost], null, postContext);
     assert.strictEqual((rssWithOriginalAndCrosspost.match(/<item>/g) || []).length, 1);
     assert(rssWithOriginalAndCrosspost.indexOf('https://reddit.com/r/originalsub/comments/original/original_post/') !== -1);
     assert(rssWithOriginalAndCrosspost.indexOf('https://reddit.com/r/crosspostsub/comments/crosspost_elsewhere/crosspost_of_original/') !== -1);
     assert(rssWithOriginalAndCrosspost.indexOf('5 — crosspostsub') !== -1);
     assert.strictEqual((rssWithOnlyCrosspost.match(/<item>/g) || []).length, 0);
 
-    var unmatchedCrosspostIndex = makeRss.buildCrosspostIndex({
+    var sameLinkPost = {
+        'name': 't3_same_link',
+        'id': 'same_link',
+        'subreddit': 'othersub',
+        'title': 'Another post with the same link',
+        'permalink': '/r/othersub/comments/same_link/another_post_with_the_same_link/',
+        'created_utc': 1460000020,
+        'score': 15,
+        'num_comments': 2,
+        'is_self': false,
+        'url': 'https://example.com/original'
+    };
+    var postContextWithSameLink = {
+        'originalsub': [originalPost],
+        'othersub': [sameLinkPost],
         'crosspostsub': [crosspost]
-    });
-    var rssWithUnmatchedCrosspost = makeRss('crosspostsub', [crosspost], null, unmatchedCrosspostIndex);
+    };
+    var rssWithSameLinkAndCrosspost = makeRss('originalsub', [originalPost], null, postContextWithSameLink);
+    var rssWithSameLinkInOtherSubreddit = makeRss('othersub', [sameLinkPost], null, postContextWithSameLink);
+    assert.strictEqual((rssWithSameLinkAndCrosspost.match(/<item>/g) || []).length, 1);
+    assert(rssWithSameLinkAndCrosspost.indexOf('https://reddit.com/r/originalsub/comments/original/original_post/') !== -1);
+    assert(rssWithSameLinkAndCrosspost.indexOf('https://reddit.com/r/othersub/comments/same_link/another_post_with_the_same_link/') !== -1);
+    assert(rssWithSameLinkAndCrosspost.indexOf('https://reddit.com/r/crosspostsub/comments/crosspost_elsewhere/crosspost_of_original/') !== -1);
+    assert.strictEqual((rssWithSameLinkInOtherSubreddit.match(/<item>/g) || []).length, 0);
+
+    var unmatchedCrosspost = {
+        'name': 't3_unmatched_crosspost',
+        'id': 'unmatched_crosspost',
+        'subreddit': 'manybaggers',
+        'title': 'Crosspost without downloaded parent',
+        'permalink': '/r/manybaggers/comments/unmatched_crosspost/crosspost_without_downloaded_parent/',
+        'created_utc': 1460000030,
+        'score': 4,
+        'num_comments': 1,
+        'is_self': false,
+        'url': '/r/BagBoysClub/comments/missing_parent/source_post/',
+        'crosspost_parent_list': [{
+            'id': 'missing_parent'
+        }]
+    };
+    var sameUrlUnmatchedCrosspost = {
+        'name': 't3_same_url_unmatched_crosspost',
+        'id': 'same_url_unmatched_crosspost',
+        'subreddit': 'backpacks',
+        'title': 'Another crosspost without downloaded parent',
+        'permalink': '/r/backpacks/comments/same_url_unmatched_crosspost/another_crosspost_without_downloaded_parent/',
+        'created_utc': 1460000040,
+        'score': 7,
+        'num_comments': 2,
+        'is_self': false,
+        'url': '/r/BagBoysClub/comments/missing_parent/source_post/',
+        'crosspost_parent_list': [{
+            'id': 'missing_parent'
+        }]
+    };
+    var unmatchedCrosspostContext = {
+        'manybaggers': [unmatchedCrosspost],
+        'backpacks': [sameUrlUnmatchedCrosspost]
+    };
+    var rssWithUnmatchedCrosspost = makeRss('manybaggers', [unmatchedCrosspost], null, unmatchedCrosspostContext);
+    var rssWithSameUrlUnmatchedCrosspost = makeRss('backpacks', [sameUrlUnmatchedCrosspost], null, unmatchedCrosspostContext);
     assert.strictEqual((rssWithUnmatchedCrosspost.match(/<item>/g) || []).length, 1);
+    assert.strictEqual((rssWithSameUrlUnmatchedCrosspost.match(/<item>/g) || []).length, 1);
+    assert(rssWithUnmatchedCrosspost.indexOf('https://reddit.com/r/backpacks/comments/same_url_unmatched_crosspost/another_crosspost_without_downloaded_parent/') === -1);
+    assert(rssWithSameUrlUnmatchedCrosspost.indexOf('https://reddit.com/r/manybaggers/comments/unmatched_crosspost/crosspost_without_downloaded_parent/') === -1);
 
     var transporter = nodemailer.createTransport('smtp://localhost:2525');
     assert.strictEqual(typeof transporter.sendMail, 'function');
