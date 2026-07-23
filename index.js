@@ -273,7 +273,8 @@ var getAllSubscriptions = function() {
                 subscriptions.push({
                     'key': subreddit,
                     'displayName': String(displayName),
-                    'subscribers': Number(item.subscribers || 0)
+                    'subscribers': Number(item.subscribers || 0),
+                    'communityIcon': item.community_icon || null
                 });
             });
 
@@ -308,6 +309,7 @@ var buildSubscriptions = function(rawSubscriptions) {
         return {
             'key': key,
             'displayName': subscription.displayName,
+            'communityIcon': subscription.communityIcon,
             'popularityGroup': getPopularityGroup(subscription.subscribers),
             'filename': getRssFilename(key)
         };
@@ -495,7 +497,7 @@ var sendSubscriptionChangeEmail = function(changes) {
 
 var publish = function(storage, subscriptions, changes) {
     subscriptions.list.forEach(function(subscription) {
-        var content = makeRss(subscription.displayName, storage.posts[subscription.key] || []);
+        var content = makeRss(subscription.displayName, storage.posts[subscription.key] || [], subscription.communityIcon);
         writeFileAtomicSync(getRssFilePath(subscription.key), content);
     });
 

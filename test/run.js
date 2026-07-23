@@ -26,6 +26,10 @@ var testRssAndOpml = function() {
     var emptyRss = makeRss('javascript', []);
     assert(emptyRss.indexOf('<title>reddit / r/javascript</title>') !== -1);
     assert(emptyRss.indexOf('<item>') === -1);
+    assert(emptyRss.indexOf('<url>https://www.redditstatic.com/shreddit/assets/favicon/192x192.png</url>') !== -1);
+
+    var rssWithCommunityIcon = makeRss('javascript', [], 'https://styles.redditmedia.com/icon.png?width=256&amp;s=example');
+    assert(rssWithCommunityIcon.indexOf('<url>https://styles.redditmedia.com/icon.png?width=256&amp;s=example</url>') !== -1);
 
     var rss = makeRss('javascript', posts);
     assert(rss.indexOf('<item>') !== -1);
@@ -220,7 +224,12 @@ var testRedditClient = function() {
                 'body': JSON.stringify({
                     'data': {
                         'children': [{
-                            'data': {'name': 't5_javascript', 'display_name': 'javascript', 'subscribers': 10}
+                            'data': {
+                                'name': 't5_javascript',
+                                'display_name': 'javascript',
+                                'subscribers': 10,
+                                'community_icon': 'https://styles.redditmedia.com/icon.png'
+                            }
                         }]
                     }
                 })
@@ -240,6 +249,7 @@ var testRedditClient = function() {
 
     return client.getSubscriptions({'limit': 100, 'after': 't5_previous'}).then(function(subscriptions) {
         assert.strictEqual(subscriptions[0].display_name, 'javascript');
+        assert.strictEqual(subscriptions[0].community_icon, 'https://styles.redditmedia.com/icon.png');
         assert.strictEqual(requests[0].hostname, 'www.reddit.com');
         assert.strictEqual(requests[0].path, '/api/v1/access_token');
         assert.strictEqual(requests[0].headers.Authorization, 'Basic Y2xpZW50LWlkOmNsaWVudC1zZWNyZXQ=');
