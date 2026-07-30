@@ -134,7 +134,11 @@ var testDependencyApis = function() {
         'is_self': false,
         'url': 'https://reddit.com/r/originalsub/comments/original/original_post/',
         'crosspost_parent_list': [{
-            'id': 'original'
+            'id': 'original',
+            'subreddit': 'originalsub',
+            'permalink': '/r/originalsub/comments/original/original_post/',
+            'score': 12,
+            'num_comments': 3
         }]
     };
     var postContext = {
@@ -186,7 +190,11 @@ var testDependencyApis = function() {
         'is_self': false,
         'url': '/r/BagBoysClub/comments/missing_parent/source_post/',
         'crosspost_parent_list': [{
-            'id': 'missing_parent'
+            'id': 'missing_parent',
+            'subreddit': 'BagBoysClub',
+            'permalink': '/r/BagBoysClub/comments/missing_parent/source_post/',
+            'score': 4,
+            'num_comments': 2
         }]
     };
     var sameUrlUnmatchedCrosspost = {
@@ -201,7 +209,11 @@ var testDependencyApis = function() {
         'is_self': false,
         'url': '/r/BagBoysClub/comments/missing_parent/source_post/',
         'crosspost_parent_list': [{
-            'id': 'missing_parent'
+            'id': 'missing_parent',
+            'subreddit': 'BagBoysClub',
+            'permalink': '/r/BagBoysClub/comments/missing_parent/source_post/',
+            'score': 4,
+            'num_comments': 2
         }]
     };
     var unmatchedCrosspostContext = {
@@ -214,6 +226,9 @@ var testDependencyApis = function() {
     assert.strictEqual((rssWithSameUrlUnmatchedCrosspost.match(/<item>/g) || []).length, 1);
     assert(rssWithUnmatchedCrosspost.indexOf('https://reddit.com/r/backpacks/comments/same_url_unmatched_crosspost/another_crosspost_without_downloaded_parent/') === -1);
     assert(rssWithSameUrlUnmatchedCrosspost.indexOf('https://reddit.com/r/manybaggers/comments/unmatched_crosspost/crosspost_without_downloaded_parent/') === -1);
+    assert(rssWithUnmatchedCrosspost.indexOf('https://reddit.com/r/BagBoysClub/comments/missing_parent/source_post/') !== -1);
+    assert(rssWithUnmatchedCrosspost.indexOf('2 — BagBoysClub') !== -1);
+    assert(rssWithUnmatchedCrosspost.indexOf('crosspost from') === -1);
 
     var transporter = nodemailer.createTransport('smtp://localhost:2525');
     assert.strictEqual(typeof transporter.sendMail, 'function');
