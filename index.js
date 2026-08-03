@@ -98,6 +98,7 @@ reddit = new RedditClient({
 var normalizeSubreddit = storageUtils.normalizeSubreddit;
 var isSafeSubredditName = storageUtils.isSafeSubredditName;
 var getPostTimestamp = storageUtils.getPostTimestamp;
+var getFallbackBefores = storageUtils.getFallbackBefores;
 var sortAndLimitPosts = storageUtils.sortAndLimitPosts;
 
 var getRssFilename = function(subreddit) {
@@ -589,9 +590,11 @@ var main = function() {
         changes.hasChanges = changes.added.length > 0 || changes.removed.length > 0;
         changes.writeOpml = isFirstRun || changes.hasChanges;
 
+        var fallbackBefores = getFallbackBefores(storage.posts, before);
+        logger.logDebug('Prepared storage fallback cursors {count: ' + fallbackBefores.length + '}');
         return fetchNewPosts(reddit, before, maxTime, reserveNewPostRequest, logger.logDebug.bind(logger), function(pageLength) {
             lastNewPostPageLength = pageLength;
-        }).then(function(result) {
+        }, fallbackBefores).then(function(result) {
             logger.logDebug('Fetched mature posts {count: ' + result.posts.length + '; deferred: ' + result.deferredPosts + '; before: ' + result.before + '}');
             var filterStats = storeNewPosts(storage, result.posts, subscriptions.byKey);
             savedPostCount = filterStats.accepted;

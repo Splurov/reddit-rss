@@ -7,6 +7,7 @@ var makeOpml = require('../lib/make-opml');
 var fetchNewPosts = require('../lib/fetch-new-posts');
 var RedditClient = require('../lib/reddit-client');
 var subredditMinRules = require('../lib/min-rules');
+var storageUtils = require('../lib/storage');
 var nodemailer = require('nodemailer');
 
 var posts = [{
@@ -253,6 +254,26 @@ var testSubredditMinRules = function() {
     }, /minScore must be a non-negative number/);
 };
 
+var testStorageFallbackBefores = function() {
+    var fallbackBefores = storageUtils.getFallbackBefores({
+        'first': [
+            {'name': 't3_z'},
+            {'name': 't3_10'},
+            {'name': 't3_12'},
+            {'name': 'invalid'}
+        ],
+        'second': [
+            {'name': 't3_y'},
+            {'name': 't3_Z'},
+            {'id': 'x'}
+        ]
+    }, 't3_11');
+
+    assert.deepStrictEqual(fallbackBefores, ['t3_10', 't3_z', 't3_y']);
+    assert.deepStrictEqual(storageUtils.getFallbackBefores({}, 't3_11'), []);
+    assert.deepStrictEqual(storageUtils.getFallbackBefores({'first': [{'name': 't3_z'}]}, 'invalid'), []);
+};
+
 var makePost = function(number) {
     return {
         'name': 't3_new_' + number,
@@ -380,6 +401,73 @@ var testRecentPostsAreDeferred = function() {
     });
 };
 
+var testDeletedBeforeUsesStorageFallback = function() {
+    var requests = [];
+    var debugMessages = [];
+    var reddit = {
+        'getNew': function(params) {
+            requests.push(params);
+            if (params.before === 't3_b' || params.before === 't3_a') {
+                return Promise.resolve([]);
+            }
+            if (params.before === 't3_9') {
+                return Promise.resolve([{'name': 't3_c', 'created_utc': 100}]);
+            }
+            if (params.before === 't3_c') {
+                return Promise.resolve([]);
+            }
+            throw new Error('Unexpected before: ' + params.before);
+        }
+    };
+
+    return fetchNewPosts(reddit, 't3_b', 1000, function() {
+        return true;
+    }, function(message) {
+        debugMessages.push(message);
+    }, function() {}, ['t3_a', 't3_9']).then(function(result) {
+        assert.deepStrictEqual(requests, [
+            {'limit': 100, 'before': 't3_b'},
+            {'limit': 100, 'before': 't3_a'},
+            {'limit': 100, 'before': 't3_9'},
+            {'limit': 100, 'before': 't3_c'}
+        ]);
+        assert.strictEqual(result.posts.length, 1);
+        assert.strictEqual(result.posts[0].name, 't3_c');
+        assert.strictEqual(result.before, 't3_c');
+        assert.strictEqual(result.requestLimitReached, false);
+        assert(debugMessages.some(function(message) {
+            return message.indexOf('Recovered new-post pagination') !== -1;
+        }));
+    });
+};
+
+var testStorageFallbackDoesNotRegressValidBefore = function() {
+    var requests = [];
+    var reddit = {
+        'getNew': function(params) {
+            requests.push(params);
+            if (params.before === 't3_b') {
+                return Promise.resolve([]);
+            }
+            if (params.before === 't3_a') {
+                return Promise.resolve([{'name': 't3_b', 'created_utc': 100}]);
+            }
+            throw new Error('Unexpected before: ' + params.before);
+        }
+    };
+
+    return fetchNewPosts(reddit, 't3_b', 1000, function() {
+        return true;
+    }, function() {}, function() {}, ['t3_a']).then(function(result) {
+        assert.deepStrictEqual(requests, [
+            {'limit': 100, 'before': 't3_b'},
+            {'limit': 100, 'before': 't3_a'}
+        ]);
+        assert.strictEqual(result.before, 't3_b');
+        assert.strictEqual(result.requestLimitReached, false);
+    });
+};
+
 var testRedditClient = function() {
     var requests = [];
     var debugMessages = [];
@@ -502,10 +590,13 @@ var testRedditClientRefreshesUnauthorizedToken = function() {
 testRssAndOpml();
 testDependencyApis();
 testSubredditMinRules();
+testStorageFallbackBefores();
 Promise.all([
     testNewPostPagination(),
     testNewPostRequestLimitPreservesProgress(),
     testRecentPostsAreDeferred(),
+    testDeletedBeforeUsesStorageFallback(),
+    testStorageFallbackDoesNotRegressValidBefore(),
     testRedditClient(),
     testRedditClientRefreshesUnauthorizedToken()
 ]).then(function() {
