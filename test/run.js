@@ -190,6 +190,31 @@ var testDependencyApis = function() {
     assert(rssWithAnimatedGallery.indexOf('&lt;img src=&quot;https://i.redd.it/animated-image.gif&quot; width=&quot;1280&quot; height=&quot;960&quot;/&gt;') !== -1);
     assert(rssWithAnimatedGallery.indexOf('&lt;p&gt;Animated caption&lt;/p&gt;') !== -1);
 
+    var rssWithPoll = makeRss('victorinox', [{
+        'name': 't3_poll',
+        'id': 'poll',
+        'subreddit': 'victorinox',
+        'author': 'poll_author',
+        'title': 'Choose one',
+        'permalink': '/r/victorinox/comments/poll/choose_one/',
+        'created_utc': 1460000000,
+        'score': 1,
+        'num_comments': 1,
+        'is_self': true,
+        'selftext_html': '&lt;p&gt;Only one survives.&lt;/p&gt;',
+        'poll_data': {
+            'options': [
+                {'id': 'first', 'text': 'Compact & Climber'},
+                {'id': 'second', 'text': 'Explorer < SwissChamp'}
+            ],
+            'total_vote_count': 42
+        }
+    }]);
+    assert(rssWithPoll.indexOf('&lt;p&gt;&lt;strong&gt;Poll — 42 votes&lt;/strong&gt;&lt;/p&gt;') !== -1);
+    assert(rssWithPoll.indexOf('&lt;li&gt;Compact &amp;amp; Climber&lt;/li&gt;') !== -1);
+    assert(rssWithPoll.indexOf('&lt;li&gt;Explorer &amp;lt; SwissChamp&lt;/li&gt;') !== -1);
+    assert(rssWithPoll.indexOf('Vote on Reddit') === -1);
+
     var originalPost = {
         'name': 't3_original',
         'id': 'original',
