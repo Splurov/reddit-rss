@@ -140,6 +140,34 @@ var testDependencyApis = function() {
     }]);
     assert(rssWithCrosspostGallery.indexOf('https://preview.redd.it/crosspost-gallery.jpg') !== -1);
 
+    var rssWithAnimatedGallery = makeRss('OpenAI', [{
+        'name': 't3_animated_gallery',
+        'id': 'animated_gallery',
+        'subreddit': 'OpenAI',
+        'title': 'Animated gallery',
+        'permalink': '/r/OpenAI/comments/animated_gallery/animated_gallery/',
+        'created_utc': 1460000000,
+        'score': 1,
+        'num_comments': 1,
+        'is_self': false,
+        'url': 'https://www.reddit.com/gallery/animated_gallery',
+        'gallery_data': {
+            'items': [{'media_id': 'animated-image'}]
+        },
+        'media_metadata': {
+            'animated-image': {
+                'e': 'AnimatedImage',
+                's': {
+                    'mp4': 'https://preview.redd.it/animated-image.mp4',
+                    'gif': 'https://i.redd.it/animated-image.gif'
+                }
+            }
+        }
+    }]);
+    assert(rssWithAnimatedGallery.indexOf('&lt;video autoplay loop muted playsinline preload=&quot;metadata&quot;&gt;') !== -1);
+    assert(rssWithAnimatedGallery.indexOf('&lt;source src=&quot;https://preview.redd.it/animated-image.mp4&quot; type=&quot;video/mp4&quot;/&gt;') !== -1);
+    assert(rssWithAnimatedGallery.indexOf('&lt;img src=&quot;https://i.redd.it/animated-image.gif&quot;/&gt;') !== -1);
+
     var originalPost = {
         'name': 't3_original',
         'id': 'original',
