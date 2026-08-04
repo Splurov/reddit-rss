@@ -14,6 +14,7 @@ var posts = [{
     'name': 't3_example',
     'id': 'example',
     'subreddit': 'javascript',
+    'author': 'example_author',
     'title': 'A post.',
     'permalink': '/r/javascript/comments/example/a_post/',
     'created_utc': 1460000000,
@@ -36,6 +37,8 @@ var testRssAndOpml = function() {
 
     var rss = makeRss('javascript', posts);
     assert(rss.indexOf('<item>') !== -1);
+    assert(rss.indexOf('<author>example_author</author>') !== -1);
+    assert(rss.indexOf('<author>javascript</author>') === -1);
     assert.strictEqual(posts[0].name, 't3_example');
 
     var opml = makeOpml([
