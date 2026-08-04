@@ -106,14 +106,18 @@ var testDependencyApis = function() {
         'preview': {
             'images': [{
                 'source': {'url': 'https://preview.redd.it/reddit-video-source.jpg'},
-                'resolutions': [{'url': 'https://preview.redd.it/reddit-video-preview.jpg'}]
+                'resolutions': [{
+                    'url': 'https://preview.redd.it/reddit-video-preview.jpg',
+                    'width': 640,
+                    'height': 360
+                }]
             }]
         }
     }]);
     assert(rssWithRedditVideo.indexOf('&lt;video controls preload=&quot;metadata&quot; poster=&quot;https://preview.redd.it/reddit-video-preview.jpg&quot;&gt;') !== -1);
     assert(rssWithRedditVideo.indexOf('&lt;source src=&quot;https://v.redd.it/reddit-video/video.mp4&quot; type=&quot;video/mp4&quot;/&gt;') !== -1);
-    assert(rssWithRedditVideo.indexOf('&lt;img src=&quot;https://preview.redd.it/reddit-video-preview.jpg&quot;/&gt;') !== -1);
-    assert(rssWithRedditVideo.indexOf('&lt;p&gt;&lt;img src=&quot;https://preview.redd.it/reddit-video-preview.jpg&quot;/&gt;&lt;/p&gt;') === -1);
+    assert(rssWithRedditVideo.indexOf('&lt;img src=&quot;https://preview.redd.it/reddit-video-preview.jpg&quot; width=&quot;640&quot; height=&quot;360&quot;/&gt;') !== -1);
+    assert(rssWithRedditVideo.indexOf('&lt;p&gt;&lt;img src=&quot;https://preview.redd.it/reddit-video-preview.jpg&quot;') === -1);
 
     var rssWithCrosspostGallery = makeRss('CitiesSkylines2', [{
         'name': 't3_crosspost',
@@ -128,17 +132,26 @@ var testDependencyApis = function() {
         'url': 'https://www.reddit.com/gallery/original',
         'crosspost_parent_list': [{
             'gallery_data': {
-                'items': [{'media_id': 'gallery-image'}]
+                'items': [{
+                    'media_id': 'gallery-image',
+                    'caption': 'First & second <third>'
+                }]
             },
             'media_metadata': {
                 'gallery-image': {
                     'e': 'Image',
-                    'p': [{'u': 'https://preview.redd.it/crosspost-gallery.jpg'}]
+                    'p': [{
+                        'u': 'https://preview.redd.it/crosspost-gallery.jpg',
+                        'x': 1080,
+                        'y': 720
+                    }]
                 }
             }
         }]
     }]);
     assert(rssWithCrosspostGallery.indexOf('https://preview.redd.it/crosspost-gallery.jpg') !== -1);
+    assert(rssWithCrosspostGallery.indexOf('width=&quot;1080&quot; height=&quot;720&quot;') !== -1);
+    assert(rssWithCrosspostGallery.indexOf('&lt;p&gt;First &amp;amp; second &amp;lt;third&amp;gt;&lt;/p&gt;') !== -1);
 
     var rssWithAnimatedGallery = makeRss('OpenAI', [{
         'name': 't3_animated_gallery',
@@ -152,21 +165,27 @@ var testDependencyApis = function() {
         'is_self': false,
         'url': 'https://www.reddit.com/gallery/animated_gallery',
         'gallery_data': {
-            'items': [{'media_id': 'animated-image'}]
+            'items': [{
+                'media_id': 'animated-image',
+                'caption': 'Animated caption'
+            }]
         },
         'media_metadata': {
             'animated-image': {
                 'e': 'AnimatedImage',
                 's': {
                     'mp4': 'https://preview.redd.it/animated-image.mp4',
-                    'gif': 'https://i.redd.it/animated-image.gif'
+                    'gif': 'https://i.redd.it/animated-image.gif',
+                    'x': 1280,
+                    'y': 960
                 }
             }
         }
     }]);
     assert(rssWithAnimatedGallery.indexOf('&lt;video autoplay loop muted playsinline preload=&quot;metadata&quot;&gt;') !== -1);
     assert(rssWithAnimatedGallery.indexOf('&lt;source src=&quot;https://preview.redd.it/animated-image.mp4&quot; type=&quot;video/mp4&quot;/&gt;') !== -1);
-    assert(rssWithAnimatedGallery.indexOf('&lt;img src=&quot;https://i.redd.it/animated-image.gif&quot;/&gt;') !== -1);
+    assert(rssWithAnimatedGallery.indexOf('&lt;img src=&quot;https://i.redd.it/animated-image.gif&quot; width=&quot;1280&quot; height=&quot;960&quot;/&gt;') !== -1);
+    assert(rssWithAnimatedGallery.indexOf('&lt;p&gt;Animated caption&lt;/p&gt;') !== -1);
 
     var originalPost = {
         'name': 't3_original',
