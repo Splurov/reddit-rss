@@ -86,6 +86,35 @@ var testDependencyApis = function() {
     assert(rssWithEmbed.indexOf('&lt;p&gt;&lt;iframe src=&quot;https://example.com/embed?autoplay=1&amp;amp;api=1&quot;&gt;&lt;/iframe&gt;&lt;/p&gt;') !== -1);
     assert(rssWithEmbed.indexOf('&amp;lt;iframe') === -1);
 
+    var rssWithRedditVideo = makeRss('wallets', [{
+        'name': 't3_reddit_video',
+        'id': 'reddit_video',
+        'subreddit': 'wallets',
+        'title': 'Reddit video',
+        'permalink': '/r/wallets/comments/reddit_video/reddit_video/',
+        'created_utc': 1460000000,
+        'score': 1,
+        'num_comments': 1,
+        'is_self': false,
+        'is_reddit_media_domain': true,
+        'url': 'https://v.redd.it/reddit-video',
+        'media': {
+            'reddit_video': {
+                'fallback_url': 'https://v.redd.it/reddit-video/video.mp4'
+            }
+        },
+        'preview': {
+            'images': [{
+                'source': {'url': 'https://preview.redd.it/reddit-video-source.jpg'},
+                'resolutions': [{'url': 'https://preview.redd.it/reddit-video-preview.jpg'}]
+            }]
+        }
+    }]);
+    assert(rssWithRedditVideo.indexOf('&lt;video controls preload=&quot;metadata&quot; poster=&quot;https://preview.redd.it/reddit-video-preview.jpg&quot;&gt;') !== -1);
+    assert(rssWithRedditVideo.indexOf('&lt;source src=&quot;https://v.redd.it/reddit-video/video.mp4&quot; type=&quot;video/mp4&quot;/&gt;') !== -1);
+    assert(rssWithRedditVideo.indexOf('&lt;img src=&quot;https://preview.redd.it/reddit-video-preview.jpg&quot;/&gt;') !== -1);
+    assert(rssWithRedditVideo.indexOf('&lt;p&gt;&lt;img src=&quot;https://preview.redd.it/reddit-video-preview.jpg&quot;/&gt;&lt;/p&gt;') === -1);
+
     var rssWithCrosspostGallery = makeRss('CitiesSkylines2', [{
         'name': 't3_crosspost',
         'id': 'crosspost',
