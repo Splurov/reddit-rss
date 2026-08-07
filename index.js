@@ -97,7 +97,6 @@ reddit = new RedditClient({
 
 var normalizeSubreddit = storageUtils.normalizeSubreddit;
 var isSafeSubredditName = storageUtils.isSafeSubredditName;
-var getPostTimestamp = storageUtils.getPostTimestamp;
 var getFallbackBefores = storageUtils.getFallbackBefores;
 var sortAndLimitPosts = storageUtils.sortAndLimitPosts;
 
@@ -238,15 +237,12 @@ var initializeConfiguration = function() {
 };
 
 var getPopularityGroup = function(count) {
-    var selectedGroup = popularityGroups[popularityGroups.length - 1];
-    popularityGroups.some(function(group) {
-        if (count <= group) {
-            selectedGroup = group;
-            return true;
+    for (var index = 0; index < popularityGroups.length; index++) {
+        if (count <= popularityGroups[index]) {
+            return popularityGroups[index];
         }
-        return false;
-    });
-    return selectedGroup;
+    }
+    return popularityGroups[popularityGroups.length - 1];
 };
 
 var getAllSubscriptions = function() {
@@ -299,30 +295,30 @@ var getAllSubscriptions = function() {
 };
 
 var buildSubscriptions = function(rawSubscriptions) {
-    var subscriptionsByKey = {};
+    var rawSubscriptionsByKey = {};
     rawSubscriptions.forEach(function(subscription) {
-        if (!subscriptionsByKey[subscription.key]) {
-            subscriptionsByKey[subscription.key] = subscription;
+        if (!rawSubscriptionsByKey[subscription.key]) {
+            rawSubscriptionsByKey[subscription.key] = subscription;
         }
     });
 
-    var subscriptions = Object.keys(subscriptionsByKey).sort().map(function(key) {
-        var subscription = subscriptionsByKey[key];
-        return {
+    var subscriptionsByKey = {};
+    var subscriptions = Object.keys(rawSubscriptionsByKey).sort().map(function(key) {
+        var rawSubscription = rawSubscriptionsByKey[key];
+        var subscription = {
             'key': key,
-            'displayName': subscription.displayName,
-            'communityIcon': subscription.communityIcon,
-            'popularityGroup': getPopularityGroup(subscription.subscribers),
+            'displayName': rawSubscription.displayName,
+            'communityIcon': rawSubscription.communityIcon,
+            'popularityGroup': getPopularityGroup(rawSubscription.subscribers),
             'filename': getRssFilename(key)
         };
+        subscriptionsByKey[key] = subscription;
+        return subscription;
     });
 
     return {
         'list': subscriptions,
-        'byKey': subscriptions.reduce(function(result, subscription) {
-            result[subscription.key] = subscription;
-            return result;
-        }, {})
+        'byKey': subscriptionsByKey
     };
 };
 
@@ -369,7 +365,6 @@ var compareSubscriptions = function(cachedSubreddits, currentSubreddits) {
 };
 
 var isEligiblePost = function(post, subscriptionsByKey, stats) {
-    stats.total++;
     var subreddit = normalizeSubreddit(post.subreddit);
     var subscription = subreddit && subscriptionsByKey[subreddit];
     if (!subscription) {
@@ -405,7 +400,6 @@ var isEligiblePost = function(post, subscriptionsByKey, stats) {
 
 var storeNewPosts = function(storage, posts, subscriptionsByKey) {
     var stats = {
-        'total': 0,
         'accepted': 0,
         'notSubscribed': 0,
         'blacklisted': 0,
@@ -436,12 +430,6 @@ var storeNewPosts = function(storage, posts, subscriptionsByKey) {
     return stats;
 };
 
-var removeFileIfExists = function(filePath) {
-    if (fs.existsSync(filePath)) {
-        fs.unlinkSync(filePath);
-    }
-};
-
 var makeSubscriptionsCache = function(subreddits) {
     return {
         'subreddits': subreddits.map(function(subreddit) {
@@ -449,6 +437,25 @@ var makeSubscriptionsCache = function(subreddits) {
         }),
         'updatedAt': new Date().toISOString()
     };
+};
+
+var sendEmail = function(subject, text, successMessage) {
+    return new Promise(function(resolve, reject) {
+        var transporter = nodemailer.createTransport(config.mailSmtpTransportUrl);
+        transporter.sendMail({
+            'from': config.mailFrom,
+            'to': config.mailTo,
+            'subject': subject,
+            'text': text
+        }, function(error, info) {
+            if (error) {
+                reject(error);
+                return;
+            }
+            logger.logInfo(successMessage + ' {' + info.response + '}');
+            resolve();
+        });
+    });
 };
 
 var sendSubscriptionChangeEmail = function(changes) {
@@ -478,23 +485,7 @@ var sendSubscriptionChangeEmail = function(changes) {
     );
 
     var text = textParts.join('\n');
-
-    return new Promise(function(resolve, reject) {
-        var transporter = nodemailer.createTransport(config.mailSmtpTransportUrl);
-        transporter.sendMail({
-            'from': config.mailFrom,
-            'to': config.mailTo,
-            'subject': 'Reddit RSS: subscriptions changed',
-            'text': text
-        }, function(error, info) {
-            if (error) {
-                reject(error);
-                return;
-            }
-            logger.logInfo('Subscription-change email sent {' + info.response + '}');
-            resolve();
-        });
-    });
+    return sendEmail('Reddit RSS: subscriptions changed', text, 'Subscription-change email sent');
 };
 
 var sendRequestLimitEmail = function(result, filterStats) {
@@ -515,22 +506,7 @@ var sendRequestLimitEmail = function(result, filterStats) {
         'The next manual or scheduled run will continue from this cursor.'
     ].join('\n');
 
-    return new Promise(function(resolve, reject) {
-        var transporter = nodemailer.createTransport(config.mailSmtpTransportUrl);
-        transporter.sendMail({
-            'from': config.mailFrom,
-            'to': config.mailTo,
-            'subject': 'Reddit RSS: new-post request limit reached',
-            'text': text
-        }, function(error, info) {
-            if (error) {
-                reject(error);
-                return;
-            }
-            logger.logInfo('New-post request-limit email sent {' + info.response + '}');
-            resolve();
-        });
-    });
+    return sendEmail('Reddit RSS: new-post request limit reached', text, 'New-post request-limit email sent');
 };
 
 var publish = function(storage, subscriptions, changes) {
@@ -543,11 +519,12 @@ var publish = function(storage, subscriptions, changes) {
         writeFileAtomicSync(config.opmlFilePath, makeOpml(subscriptions.list, config.rssPublicBaseUrl));
     }
 
-    if (changes.hasChanges) {
-        changes.removed.forEach(function(subreddit) {
-            removeFileIfExists(getRssFilePath(subreddit));
-        });
-    }
+    changes.removed.forEach(function(subreddit) {
+        var filePath = getRssFilePath(subreddit);
+        if (fs.existsSync(filePath)) {
+            fs.unlinkSync(filePath);
+        }
+    });
 
     writeFileAtomicSync(config.storageFilePath, JSON.stringify(storage, null, 2) + '\n');
     if (changes.writeOpml) {
@@ -586,7 +563,6 @@ var main = function() {
         });
         var isFirstRun = cachedSubreddits === null;
         var changes = isFirstRun ? {'added': [], 'removed': []} : compareSubscriptions(cachedSubreddits, currentSubreddits);
-        changes.isFirstRun = isFirstRun;
         changes.hasChanges = changes.added.length > 0 || changes.removed.length > 0;
         changes.writeOpml = isFirstRun || changes.hasChanges;
 
