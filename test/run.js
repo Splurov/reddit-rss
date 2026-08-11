@@ -122,7 +122,7 @@ var testDependencyApis = function() {
     assert(rssWithRedditVideo.indexOf('&lt;img src=&quot;https://preview.redd.it/reddit-video-preview.jpg&quot; width=&quot;640&quot; height=&quot;360&quot;/&gt;') !== -1);
     assert(rssWithRedditVideo.indexOf('&lt;p&gt;&lt;img src=&quot;https://preview.redd.it/reddit-video-preview.jpg&quot;') === -1);
 
-    var rssWithCrosspostGallery = makeRss('CitiesSkylines2', [{
+    var crosspostWithGallery = {
         'name': 't3_crosspost',
         'id': 'crosspost',
         'subreddit': 'CitiesSkylines2',
@@ -133,7 +133,9 @@ var testDependencyApis = function() {
         'num_comments': 1,
         'is_self': false,
         'url': 'https://www.reddit.com/gallery/original',
+        'selftext_html': null,
         'crosspost_parent_list': [{
+            'selftext_html': '&lt;p&gt;Parent description &amp; details&lt;/p&gt;',
             'gallery_data': {
                 'items': [{
                     'media_id': 'gallery-image',
@@ -151,10 +153,17 @@ var testDependencyApis = function() {
                 }
             }
         }]
-    }]);
+    };
+    var rssWithCrosspostGallery = makeRss('CitiesSkylines2', [crosspostWithGallery]);
     assert(rssWithCrosspostGallery.indexOf('https://preview.redd.it/crosspost-gallery.jpg') !== -1);
     assert(rssWithCrosspostGallery.indexOf('width=&quot;1080&quot; height=&quot;720&quot;') !== -1);
     assert(rssWithCrosspostGallery.indexOf('&lt;p&gt;First &amp;amp; second &amp;lt;third&amp;gt;&lt;/p&gt;') !== -1);
+    assert(rssWithCrosspostGallery.indexOf('&lt;p&gt;Parent description &amp; details&lt;/p&gt;') !== -1);
+
+    crosspostWithGallery.selftext_html = '&lt;p&gt;Crosspost description&lt;/p&gt;';
+    var rssWithCrosspostDescription = makeRss('CitiesSkylines2', [crosspostWithGallery]);
+    assert(rssWithCrosspostDescription.indexOf('&lt;p&gt;Crosspost description&lt;/p&gt;') !== -1);
+    assert(rssWithCrosspostDescription.indexOf('&lt;p&gt;Parent description &amp; details&lt;/p&gt;') === -1);
 
     var rssWithAnimatedGallery = makeRss('OpenAI', [{
         'name': 't3_animated_gallery',
