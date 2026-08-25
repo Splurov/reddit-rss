@@ -16,12 +16,14 @@ var subredditMinRules = require('./lib/min-rules');
 var packageJson = require('./package.json');
 var config = require('./config.json');
 
-var before = null;
+var processedThrough = null;
 var lastNewPostPageLength = null;
 var requests = 0;
 var newPostRequests = 0;
 var maxRequests;
 var maxTime;
+var overlapSeconds;
+var initialBackfillSeconds;
 var popularityGroups;
 var blacklistRe;
 var minRulesForSubs = {};
@@ -41,10 +43,10 @@ var formatLogTime = function(date) {
 var logger = {
     '_getErrorText': function(type, message, postDetails) {
         return util.format(
-            '[%s] %s (before: %s) (%s) (requests: %s, new-post requests: %s/%s) (max time: %s)',
+            '[%s] %s (processed through: %s) (%s) (requests: %s, new-post requests: %s/%s) (max time: %s)',
             type,
             message,
-            before,
+            processedThrough,
             postDetails || ('new-post page: ' + (lastNewPostPageLength === null ? '-' : lastNewPostPageLength)),
             requests,
             newPostRequests,
@@ -97,7 +99,6 @@ reddit = new RedditClient({
 
 var normalizeSubreddit = storageUtils.normalizeSubreddit;
 var isSafeSubredditName = storageUtils.isSafeSubredditName;
-var getFallbackBefores = storageUtils.getFallbackBefores;
 var sortAndLimitPosts = storageUtils.sortAndLimitPosts;
 
 var getRssFilename = function(subreddit) {
@@ -228,6 +229,18 @@ var initializeConfiguration = function() {
     }
     maxTime = Math.round(new Date().getTime() / 1000) - (maxHoursAgo * 3600);
 
+    var overlapHours = config.overlapHours === undefined ? 6 : Number(config.overlapHours);
+    if (!isFinite(overlapHours) || overlapHours < 0) {
+        throw new Error('overlapHours must be a non-negative number');
+    }
+    overlapSeconds = overlapHours * 3600;
+
+    var initialBackfillHours = config.initialBackfillHours === undefined ? 24 : Number(config.initialBackfillHours);
+    if (!isFinite(initialBackfillHours) || initialBackfillHours < 0) {
+        throw new Error('initialBackfillHours must be a non-negative number');
+    }
+    initialBackfillSeconds = initialBackfillHours * 3600;
+
     var blacklistStrings = Array.isArray(config.blacklistStrings) ? config.blacklistStrings : [];
     blacklistRe = blacklistStrings.length > 0 ? new RegExp('(?:' + blacklistStrings.map(function(string) {
         return String(string).replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
@@ -281,8 +294,11 @@ var getAllSubscriptions = function() {
             }
 
             var lastItem = page[page.length - 1];
-            var nextAfter = lastItem.name;
-            if (!nextAfter || nextAfter === after || seenCursors[nextAfter]) {
+            var nextAfter = items.after === undefined ? lastItem.name : items.after;
+            if (!nextAfter) {
+                return subscriptions;
+            }
+            if (nextAfter === after || seenCursors[nextAfter]) {
                 throw new Error('Can not continue subscription pagination');
             }
 
@@ -399,8 +415,24 @@ var isEligiblePost = function(post, subscriptionsByKey, stats) {
 };
 
 var storeNewPosts = function(storage, posts, subscriptionsByKey) {
+    var storedPostKeys = {};
+    Object.keys(storage.posts).forEach(function(subreddit) {
+        var storedPosts = storage.posts[subreddit];
+        if (!Array.isArray(storedPosts)) {
+            return;
+        }
+        storedPosts.forEach(function(post) {
+            var key = post && (post.name || post.id);
+            if (key) {
+                storedPostKeys['$' + key] = true;
+            }
+        });
+    });
+
     var stats = {
         'accepted': 0,
+        'added': 0,
+        'refreshed': 0,
         'notSubscribed': 0,
         'blacklisted': 0,
         'deleted': 0,
@@ -416,6 +448,16 @@ var storeNewPosts = function(storage, posts, subscriptionsByKey) {
         var subreddit = normalizeSubreddit(post.subreddit);
         if (!storage.posts[subreddit]) {
             storage.posts[subreddit] = [];
+        }
+
+        var postKey = post.name || post.id;
+        if (postKey && storedPostKeys['$' + postKey]) {
+            stats.refreshed++;
+        } else {
+            stats.added++;
+            if (postKey) {
+                storedPostKeys['$' + postKey] = true;
+            }
         }
         storage.posts[subreddit].push(post);
     });
@@ -500,10 +542,13 @@ var sendRequestLimitEmail = function(result, filterStats) {
         'Partial progress was saved successfully.',
         'Fetched mature posts: ' + result.posts.length,
         'Posts accepted by filters: ' + filterStats.accepted,
-        'Saved before: ' + result.before,
+        'New stored posts: ' + filterStats.added,
+        'Refreshed stored posts: ' + filterStats.refreshed,
+        'Processed through remains: ' + result.processedThrough,
+        'Target processed through: ' + maxTime,
         'New-post requests: ' + newPostRequests + '/' + maxRequests,
         '',
-        'The next manual or scheduled run will continue from this cursor.'
+        'The next manual or scheduled run will restart from the top and retry the incomplete time window.'
     ].join('\n');
 
     return sendEmail('Reddit RSS: new-post request limit reached', text, 'New-post request-limit email sent');
@@ -543,12 +588,18 @@ var publish = function(storage, subscriptions, changes) {
 var main = function() {
     var storage;
     var cachedSubreddits;
-    var savedPostCount = 0;
+    var newPostCount = 0;
+    var refreshedPostCount = 0;
+    var acceptedPostCount = 0;
 
     try {
         initializeConfiguration();
         storage = storageUtils.requireCurrentStorage(readJsonFile(config.storageFilePath, false));
-        before = storage.before;
+        processedThrough = storage.processedThrough;
+        if (processedThrough === null) {
+            processedThrough = Math.max(0, maxTime - initialBackfillSeconds);
+            storage.processedThrough = processedThrough;
+        }
         cachedSubreddits = getCachedSubreddits(readJsonFile(config.subscriptionsCacheFilePath, true));
     } catch (error) {
         logger.logError(error.message);
@@ -566,33 +617,50 @@ var main = function() {
         changes.hasChanges = changes.added.length > 0 || changes.removed.length > 0;
         changes.writeOpml = isFirstRun || changes.hasChanges;
 
-        var fallbackBefores = getFallbackBefores(storage.posts, before);
-        logger.logDebug('Prepared storage fallback cursors {count: ' + fallbackBefores.length + '}');
-        return fetchNewPosts(reddit, before, maxTime, reserveNewPostRequest, logger.logDebug.bind(logger), function(pageLength) {
+        if (storage.before) {
+            logger.logInfo(
+                'Migrating from the legacy cursor; backfilling the configured initial window',
+                'scan from: ' + Math.max(0, processedThrough - overlapSeconds) + '; target: ' + maxTime
+            );
+        }
+        return fetchNewPosts(reddit, processedThrough, maxTime, overlapSeconds, reserveNewPostRequest, logger.logDebug.bind(logger), function(pageLength) {
             lastNewPostPageLength = pageLength;
-        }, fallbackBefores).then(function(result) {
-            logger.logDebug('Fetched mature posts {count: ' + result.posts.length + '; deferred: ' + result.deferredPosts + '; before: ' + result.before + '}');
+        }).then(function(result) {
+            logger.logDebug(
+                'Fetched mature posts {count: ' + result.posts.length +
+                '; deferred: ' + result.deferredPosts +
+                '; scan from: ' + result.scanFrom +
+                '; processed through: ' + result.processedThrough + '}'
+            );
             var filterStats = storeNewPosts(storage, result.posts, subscriptions.byKey);
-            savedPostCount = filterStats.accepted;
+            newPostCount = filterStats.added;
+            refreshedPostCount = filterStats.refreshed;
+            acceptedPostCount = filterStats.accepted;
             if (result.requestLimitReached) {
                 logger.logInfo(
-                    'Reached maxRequests before finishing new-post pagination; persisting partial progress {next before: ' + result.before + '}',
-                    'fetched mature posts: ' + result.posts.length + '; accepted: ' + filterStats.accepted
+                    'Reached maxRequests before finishing new-post pagination; keeping the previous processed-through boundary',
+                    'fetched mature posts: ' + result.posts.length +
+                    '; new: ' + filterStats.added +
+                    '; refreshed: ' + filterStats.refreshed +
+                    '; accepted: ' + filterStats.accepted
                 );
             }
             logger.logDebug(util.format(
-                'Post filter {accepted: %s; below threshold: %s; non-positive score: %s; deleted: %s; blacklisted: %s; not subscribed: %s}',
+                'Post filter {accepted: %s; new: %s; refreshed: %s; below threshold: %s; non-positive score: %s; deleted: %s; blacklisted: %s; not subscribed: %s}',
                 filterStats.accepted,
+                filterStats.added,
+                filterStats.refreshed,
                 filterStats.belowThreshold,
                 filterStats.nonPositiveScore,
                 filterStats.deleted,
                 filterStats.blacklisted,
                 filterStats.notSubscribed
             ));
-            storage.before = result.before;
+            storage.before = null;
+            storage.processedThrough = result.processedThrough;
             return publish(storage, subscriptions, changes).then(function() {
-                before = storage.before;
-                logger.logDebug('Persisted storage {before: ' + before + '}');
+                processedThrough = storage.processedThrough;
+                logger.logDebug('Persisted storage {processed through: ' + processedThrough + '}');
                 if (result.requestLimitReached) {
                     return sendRequestLimitEmail(result, filterStats).catch(function(error) {
                         logger.logError('Can not send new-post request-limit email: ' + error);
@@ -601,7 +669,10 @@ var main = function() {
             });
         });
     }).then(function() {
-        logger.logInfo('Successfully updated', 'saved posts: ' + savedPostCount);
+        logger.logInfo(
+            'Successfully updated',
+            'new posts: ' + newPostCount + '; refreshed: ' + refreshedPostCount + '; accepted: ' + acceptedPostCount
+        );
     }).catch(function(error) {
         logger.logError(error.message || String(error));
         console.error(error);

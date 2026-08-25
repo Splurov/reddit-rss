@@ -18,6 +18,8 @@
     "minRulesForSubs": {},
     "maxRequests": 20,
     "maxHoursAgo": 23,
+    "overlapHours": 6,
+    "initialBackfillHours": 24,
     "storageFilePath": "./storage.json",
     "rssDirectoryPath": "./rss",
     "rssPublicBaseUrl": "https://example.com/reddit-rss/rss/",

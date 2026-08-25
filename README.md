@@ -29,7 +29,11 @@ reddit-rss generates a separate RSS feed for every subreddit you follow and an O
 
 Subreddit names are case-insensitive and may include the `r/` prefix. A rule needs both values, which must be non-negative numbers. For example, `{"minScore": 1, "minComments": 0}` preserves the former behavior of accepting every post with a positive score.
 
-The first successful run creates the OPML and a cache of subscriptions. Later, when subscriptions change, the script creates or removes RSS files, rewrites the OPML and sends one notification to `mailTo`. The notification includes direct URLs for newly added RSS feeds as well as the OPML URL. If subscriptions do not change, the OPML is left untouched. `maxRequests` limits only the number of Reddit pages fetched for new posts; loading the full subscription list does not consume this limit. When that limit is reached, the script saves its partial progress, sends a notification to `mailTo`, and continues from the saved cursor on the next manual or scheduled run.
+`maxHoursAgo` delays the first rating check for a post. Every run starts at the top of Reddit's `/new` listing and paginates toward older posts with `after`. `overlapHours` adds a repeated lookback window beyond the previously completed boundary, so posts that gain enough score or comments later can still enter RSS. It defaults to 6 hours when omitted.
+
+The first successful run creates the OPML and a cache of subscriptions. Later, when subscriptions change, the script creates or removes RSS files, rewrites the OPML and sends one notification to `mailTo`. The notification includes direct URLs for newly added RSS feeds as well as the OPML URL. If subscriptions do not change, the OPML is left untouched.
+
+`maxRequests` limits only the number of Reddit pages fetched for new posts; loading the full subscription list does not consume this limit. When that limit is reached, fetched posts are saved but the completed time boundary is not advanced. The script sends a notification to `mailTo`, and the next manual or scheduled run safely retries the incomplete window from the top. A legacy storage file without `processedThrough` triggers a one-time backfill of `initialBackfillHours` (24 hours by default) plus the overlap window; the old `before` cursor is then cleared.
  
 ## Links
 

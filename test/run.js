@@ -367,24 +367,47 @@ var testSubredditMinRules = function() {
     }, /minScore must be a non-negative number/);
 };
 
-var testStorageFallbackBefores = function() {
-    var fallbackBefores = storageUtils.getFallbackBefores({
-        'first': [
-            {'name': 't3_z'},
-            {'name': 't3_10'},
-            {'name': 't3_12'},
-            {'name': 'invalid'}
-        ],
-        'second': [
-            {'name': 't3_y'},
-            {'name': 't3_Z'},
-            {'id': 'x'}
-        ]
-    }, 't3_11');
+var testStorageProcessedThrough = function() {
+    var legacyStorage = storageUtils.requireCurrentStorage({
+        'before': 't3_legacy',
+        'posts': {}
+    });
+    assert.strictEqual(legacyStorage.processedThrough, null);
 
-    assert.deepStrictEqual(fallbackBefores, ['t3_10', 't3_z', 't3_y']);
-    assert.deepStrictEqual(storageUtils.getFallbackBefores({}, 't3_11'), []);
-    assert.deepStrictEqual(storageUtils.getFallbackBefores({'first': [{'name': 't3_z'}]}, 'invalid'), []);
+    var currentStorage = storageUtils.requireCurrentStorage({
+        'before': null,
+        'processedThrough': 123,
+        'posts': {}
+    });
+    assert.strictEqual(currentStorage.processedThrough, 123);
+
+    assert.throws(function() {
+        storageUtils.requireCurrentStorage({
+            'before': null,
+            'processedThrough': '123',
+            'posts': {}
+        });
+    }, /processedThrough must be a non-negative number or null/);
+};
+
+var testRefetchedPostReplacesStoredVersion = function() {
+    var storedPosts = storageUtils.sortAndLimitPosts([{
+        'name': 't3_refetched',
+        'created_utc': 100,
+        'score': 5
+    }, {
+        'name': 't3_other',
+        'created_utc': 110,
+        'score': 7
+    }, {
+        'name': 't3_refetched',
+        'created_utc': 100,
+        'score': 25
+    }]);
+
+    assert.strictEqual(storedPosts.length, 2);
+    assert.strictEqual(storedPosts[0].name, 't3_refetched');
+    assert.strictEqual(storedPosts[0].score, 25);
 };
 
 var makePost = function(number) {
@@ -394,100 +417,144 @@ var makePost = function(number) {
     };
 };
 
+var makeListing = function(posts, after) {
+    posts.after = after;
+    return posts;
+};
+
 var testNewPostPagination = function() {
-    var firstPage = [];
     var requests = [];
     var pageLengths = [];
     var reservedRequests = 0;
-    for (var number = 100; number >= 1; number--) {
-        firstPage.push(makePost(number));
-    }
 
     var reddit = {
         'getNew': function(params) {
             requests.push(params);
-            if (requests.length === 1) {
-                return Promise.resolve(firstPage);
+            if (!params.after) {
+                return Promise.resolve(makeListing([
+                    makePost(250),
+                    makePost(200),
+                    makePost(180)
+                ], 't3_after_1'));
             }
-            if (requests.length === 2) {
-                return Promise.resolve([makePost(101)]);
+            if (params.after === 't3_after_1') {
+                return Promise.resolve(makeListing([
+                    makePost(120),
+                    makePost(91)
+                ], 't3_after_2'));
             }
-            return Promise.resolve([]);
+            if (params.after === 't3_after_2') {
+                return Promise.resolve(makeListing([
+                    makePost(90),
+                    makePost(80)
+                ], 't3_after_3'));
+            }
+            if (params.after === 't3_after_3') {
+                return Promise.resolve(makeListing([
+                    makePost(89),
+                    makePost(70)
+                ], 't3_unused'));
+            }
+            throw new Error('Unexpected after: ' + params.after);
         }
     };
 
-    return fetchNewPosts(reddit, 't3_saved_before', 1000, function() {
+    return fetchNewPosts(reddit, 100, 200, 10, function() {
         reservedRequests++;
+        return true;
     }, function() {}, function(pageLength) {
         pageLengths.push(pageLength);
     }).then(function(result) {
-        assert.strictEqual(reservedRequests, 3);
-        assert.deepStrictEqual(requests[0], {'limit': 100, 'before': 't3_saved_before'});
-        assert.deepStrictEqual(requests[1], {'limit': 100, 'before': 't3_new_100'});
-        assert.deepStrictEqual(requests[2], {'limit': 100, 'before': 't3_new_101'});
-        assert.deepStrictEqual(pageLengths, [100, 1, 0]);
-        assert.strictEqual(result.posts.length, 101);
-        assert.strictEqual(result.before, 't3_new_101');
-        assert.strictEqual(result.posts[result.posts.length - 1].name, 't3_new_101');
+        assert.strictEqual(reservedRequests, 4);
+        assert.deepStrictEqual(requests, [
+            {'limit': 100, 'show': 'all'},
+            {'limit': 100, 'show': 'all', 'after': 't3_after_1'},
+            {'limit': 100, 'show': 'all', 'after': 't3_after_2'},
+            {'limit': 100, 'show': 'all', 'after': 't3_after_3'}
+        ]);
+        assert.deepStrictEqual(pageLengths, [3, 2, 2, 2]);
+        assert.deepStrictEqual(result.posts.map(function(post) { return post.created_utc; }), [200, 180, 120, 91, 90]);
+        assert.strictEqual(result.deferredPosts, 1);
+        assert.strictEqual(result.scanFrom, 90);
+        assert.strictEqual(result.processedThrough, 200);
+        assert.strictEqual(result.scanCompleted, true);
         assert.strictEqual(result.requestLimitReached, false);
     });
 };
 
-var testNewPostRequestLimitPreservesProgress = function() {
+var testInitialBackfillScansToListingEnd = function() {
     var requests = [];
-    var firstPage = [];
-    var secondPage = [];
-    for (var number = 100; number >= 1; number--) {
-        firstPage.push(makePost(number));
-    }
-    for (var secondNumber = 200; secondNumber >= 101; secondNumber--) {
-        secondPage.push(makePost(secondNumber));
-    }
-
     var reddit = {
         'getNew': function(params) {
             requests.push(params);
-            if (params.before === 't3_saved_before') {
-                return Promise.resolve(firstPage);
+            if (!params.after) {
+                return Promise.resolve(makeListing([makePost(1000), makePost(900)], 't3_older'));
             }
-            if (params.before === 't3_new_100') {
-                return Promise.resolve(secondPage);
+            if (params.after === 't3_older') {
+                return Promise.resolve(makeListing([makePost(800)], null));
             }
-            if (params.before === 't3_new_200') {
-                return Promise.resolve([makePost(201)]);
-            }
-            return Promise.resolve([]);
+            throw new Error('Unexpected after: ' + params.after);
         }
     };
-    var remainingRequests = 2;
-    var reserveLimitedRequest = function() {
+
+    return fetchNewPosts(reddit, null, 1000, 21600, function() {
+        return true;
+    }, function() {}, function() {}).then(function(result) {
+        assert.deepStrictEqual(result.posts.map(function(post) { return post.created_utc; }), [1000, 900, 800]);
+        assert.strictEqual(result.scanFrom, null);
+        assert.strictEqual(result.processedThrough, 1000);
+        assert.strictEqual(result.scanCompleted, true);
+        assert.deepStrictEqual(requests, [
+            {'limit': 100, 'show': 'all'},
+            {'limit': 100, 'show': 'all', 'after': 't3_older'}
+        ]);
+    });
+};
+
+var testNewPostRequestLimitPreservesBoundary = function() {
+    var requests = [];
+    var reddit = {
+        'getNew': function(params) {
+            requests.push(params);
+            if (!params.after) {
+                return Promise.resolve(makeListing([makePost(200), makePost(150)], 't3_second'));
+            }
+            if (params.after === 't3_second') {
+                return Promise.resolve(makeListing([makePost(100), makePost(90)], 't3_third'));
+            }
+            if (params.after === 't3_third') {
+                return Promise.resolve(makeListing([makePost(89)], null));
+            }
+            throw new Error('Unexpected after: ' + params.after);
+        }
+    };
+    var remainingRequests = 1;
+
+    return fetchNewPosts(reddit, 100, 200, 10, function() {
         if (remainingRequests === 0) {
             return false;
         }
         remainingRequests--;
         return true;
-    };
-
-    return fetchNewPosts(reddit, 't3_saved_before', 1000, reserveLimitedRequest, function() {}, function() {}).then(function(firstResult) {
-        assert.strictEqual(firstResult.posts.length, 200);
-        assert.strictEqual(firstResult.before, 't3_new_200');
+    }, function() {}, function() {}).then(function(firstResult) {
+        assert.deepStrictEqual(firstResult.posts.map(function(post) { return post.created_utc; }), [200, 150]);
+        assert.strictEqual(firstResult.processedThrough, 100);
+        assert.strictEqual(firstResult.scanCompleted, false);
         assert.strictEqual(firstResult.requestLimitReached, true);
-        assert.deepStrictEqual(requests, [
-            {'limit': 100, 'before': 't3_saved_before'},
-            {'limit': 100, 'before': 't3_new_100'}
-        ]);
 
-        return fetchNewPosts(reddit, firstResult.before, 1000, function() {
+        return fetchNewPosts(reddit, firstResult.processedThrough, 200, 10, function() {
             return true;
         }, function() {}, function() {});
     }).then(function(secondResult) {
-        assert.strictEqual(secondResult.posts.length, 1);
-        assert.strictEqual(secondResult.posts[0].name, 't3_new_201');
-        assert.strictEqual(secondResult.before, 't3_new_201');
+        assert.deepStrictEqual(secondResult.posts.map(function(post) { return post.created_utc; }), [200, 150, 100, 90]);
+        assert.strictEqual(secondResult.processedThrough, 200);
+        assert.strictEqual(secondResult.scanCompleted, true);
         assert.strictEqual(secondResult.requestLimitReached, false);
-        assert.deepStrictEqual(requests.slice(2), [
-            {'limit': 100, 'before': 't3_new_200'},
-            {'limit': 100, 'before': 't3_new_201'}
+        assert.deepStrictEqual(requests, [
+            {'limit': 100, 'show': 'all'},
+            {'limit': 100, 'show': 'all'},
+            {'limit': 100, 'show': 'all', 'after': 't3_second'},
+            {'limit': 100, 'show': 'all', 'after': 't3_third'}
         ]);
     });
 };
@@ -497,87 +564,23 @@ var testRecentPostsAreDeferred = function() {
     var reddit = {
         'getNew': function(params) {
             requests.push(params);
-            return Promise.resolve([
+            return Promise.resolve(makeListing([
                 makePost(102),
                 makePost(100),
-                makePost(99)
-            ]);
+                makePost(99),
+                makePost(94)
+            ], null));
         }
     };
 
-    return fetchNewPosts(reddit, 't3_saved_before', 100, function() {}, function() {}, function() {}).then(function(result) {
-        assert.deepStrictEqual(requests, [{'limit': 100, 'before': 't3_saved_before'}]);
+    return fetchNewPosts(reddit, 95, 100, 0, function() { return true; }, function() {}, function() {}).then(function(result) {
+        assert.deepStrictEqual(requests, [{'limit': 100, 'show': 'all'}]);
         assert.strictEqual(result.posts.length, 2);
         assert.strictEqual(result.posts[0].name, 't3_new_100');
-        assert.strictEqual(result.before, 't3_new_100');
+        assert.strictEqual(result.posts[1].name, 't3_new_99');
         assert.strictEqual(result.deferredPosts, 1);
-    });
-};
-
-var testDeletedBeforeUsesStorageFallback = function() {
-    var requests = [];
-    var debugMessages = [];
-    var reddit = {
-        'getNew': function(params) {
-            requests.push(params);
-            if (params.before === 't3_b' || params.before === 't3_a') {
-                return Promise.resolve([]);
-            }
-            if (params.before === 't3_9') {
-                return Promise.resolve([{'name': 't3_c', 'created_utc': 100}]);
-            }
-            if (params.before === 't3_c') {
-                return Promise.resolve([]);
-            }
-            throw new Error('Unexpected before: ' + params.before);
-        }
-    };
-
-    return fetchNewPosts(reddit, 't3_b', 1000, function() {
-        return true;
-    }, function(message) {
-        debugMessages.push(message);
-    }, function() {}, ['t3_a', 't3_9']).then(function(result) {
-        assert.deepStrictEqual(requests, [
-            {'limit': 100, 'before': 't3_b'},
-            {'limit': 100, 'before': 't3_a'},
-            {'limit': 100, 'before': 't3_9'},
-            {'limit': 100, 'before': 't3_c'}
-        ]);
-        assert.strictEqual(result.posts.length, 1);
-        assert.strictEqual(result.posts[0].name, 't3_c');
-        assert.strictEqual(result.before, 't3_c');
-        assert.strictEqual(result.requestLimitReached, false);
-        assert(debugMessages.some(function(message) {
-            return message.indexOf('Recovered new-post pagination') !== -1;
-        }));
-    });
-};
-
-var testStorageFallbackDoesNotRegressValidBefore = function() {
-    var requests = [];
-    var reddit = {
-        'getNew': function(params) {
-            requests.push(params);
-            if (params.before === 't3_b') {
-                return Promise.resolve([]);
-            }
-            if (params.before === 't3_a') {
-                return Promise.resolve([{'name': 't3_b', 'created_utc': 100}]);
-            }
-            throw new Error('Unexpected before: ' + params.before);
-        }
-    };
-
-    return fetchNewPosts(reddit, 't3_b', 1000, function() {
-        return true;
-    }, function() {}, function() {}, ['t3_a']).then(function(result) {
-        assert.deepStrictEqual(requests, [
-            {'limit': 100, 'before': 't3_b'},
-            {'limit': 100, 'before': 't3_a'}
-        ]);
-        assert.strictEqual(result.before, 't3_b');
-        assert.strictEqual(result.requestLimitReached, false);
+        assert.strictEqual(result.processedThrough, 100);
+        assert.strictEqual(result.scanCompleted, true);
     });
 };
 
@@ -608,6 +611,8 @@ var testRedditClient = function() {
                 'statusCode': 200,
                 'body': JSON.stringify({
                     'data': {
+                        'after': 't5_next',
+                        'before': null,
                         'children': [{
                             'data': {
                                 'name': 't5_javascript',
@@ -624,6 +629,8 @@ var testRedditClient = function() {
             'statusCode': 200,
             'body': JSON.stringify({
                 'data': {
+                    'after': 't3_next',
+                    'before': 't3_previous',
                     'children': [{
                         'data': makePost(1)
                     }]
@@ -635,6 +642,8 @@ var testRedditClient = function() {
     return client.getSubscriptions({'limit': 100, 'after': 't5_previous'}).then(function(subscriptions) {
         assert.strictEqual(subscriptions[0].display_name, 'javascript');
         assert.strictEqual(subscriptions[0].community_icon, 'https://styles.redditmedia.com/icon.png');
+        assert.strictEqual(subscriptions.after, 't5_next');
+        assert.strictEqual(subscriptions.before, null);
         assert.strictEqual(requests[0].hostname, 'www.reddit.com');
         assert.strictEqual(requests[0].path, '/api/v1/access_token');
         assert.strictEqual(requests[0].headers.Authorization, 'Basic Y2xpZW50LWlkOmNsaWVudC1zZWNyZXQ=');
@@ -647,12 +656,14 @@ var testRedditClient = function() {
             'Request URL {url: https://oauth.reddit.com/subreddits/mine/subscriber?limit=100&after=t5_previous}'
         ]);
 
-        return client.getNew({'limit': 100, 'before': 't3_before'});
+        return client.getNew({'limit': 100, 'show': 'all', 'after': 't3_previous'});
     }).then(function(posts) {
         assert.strictEqual(posts[0].name, 't3_new_1');
+        assert.strictEqual(posts.after, 't3_next');
+        assert.strictEqual(posts.before, 't3_previous');
         assert.strictEqual(requests.length, 3);
-        assert.strictEqual(requests[2].path, '/new?limit=100&before=t3_before');
-        assert.strictEqual(debugMessages[2], 'Request URL {url: https://oauth.reddit.com/new?limit=100&before=t3_before}');
+        assert.strictEqual(requests[2].path, '/new?limit=100&show=all&after=t3_previous');
+        assert.strictEqual(debugMessages[2], 'Request URL {url: https://oauth.reddit.com/new?limit=100&show=all&after=t3_previous}');
     });
 };
 
@@ -693,7 +704,9 @@ var testRedditClientRefreshesUnauthorizedToken = function() {
     };
 
     return client.getNew({'limit': 100}).then(function(posts) {
-        assert.deepStrictEqual(posts, []);
+        assert.strictEqual(posts.length, 0);
+        assert.strictEqual(posts.after, null);
+        assert.strictEqual(posts.before, null);
         assert.strictEqual(requests.length, 4);
         assert.strictEqual(requests[1].headers.Authorization, 'Bearer expired-token');
         assert.strictEqual(requests[3].headers.Authorization, 'Bearer fresh-token');
@@ -703,13 +716,13 @@ var testRedditClientRefreshesUnauthorizedToken = function() {
 testRssAndOpml();
 testDependencyApis();
 testSubredditMinRules();
-testStorageFallbackBefores();
+testStorageProcessedThrough();
+testRefetchedPostReplacesStoredVersion();
 Promise.all([
     testNewPostPagination(),
-    testNewPostRequestLimitPreservesProgress(),
+    testInitialBackfillScansToListingEnd(),
+    testNewPostRequestLimitPreservesBoundary(),
     testRecentPostsAreDeferred(),
-    testDeletedBeforeUsesStorageFallback(),
-    testStorageFallbackDoesNotRegressValidBefore(),
     testRedditClient(),
     testRedditClientRefreshesUnauthorizedToken()
 ]).then(function() {
