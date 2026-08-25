@@ -545,10 +545,11 @@ var sendRequestLimitEmail = function(result, filterStats) {
         'New stored posts: ' + filterStats.added,
         'Refreshed stored posts: ' + filterStats.refreshed,
         'Processed through remains: ' + result.processedThrough,
-        'Target processed through: ' + maxTime,
+        'Target processed through: ' + result.targetProcessedThrough,
+        'Resume after: ' + (result.pendingScan ? result.pendingScan.after : 'none'),
         'New-post requests: ' + newPostRequests + '/' + maxRequests,
         '',
-        'The next manual or scheduled run will restart from the top and retry the incomplete time window.'
+        'The next manual or scheduled run will continue from the saved Reddit cursor.'
     ].join('\n');
 
     return sendEmail('Reddit RSS: new-post request limit reached', text, 'New-post request-limit email sent');
@@ -623,14 +624,24 @@ var main = function() {
                 'scan from: ' + Math.max(0, processedThrough - overlapSeconds) + '; target: ' + maxTime
             );
         }
+        if (storage.pendingScan) {
+            logger.logInfo(
+                'Continuing an incomplete new-post scan',
+                'after: ' + storage.pendingScan.after +
+                '; scan from: ' + storage.pendingScan.scanFrom +
+                '; target: ' + storage.pendingScan.targetProcessedThrough
+            );
+        }
         return fetchNewPosts(reddit, processedThrough, maxTime, overlapSeconds, reserveNewPostRequest, logger.logDebug.bind(logger), function(pageLength) {
             lastNewPostPageLength = pageLength;
-        }).then(function(result) {
+        }, storage.pendingScan).then(function(result) {
             logger.logDebug(
                 'Fetched mature posts {count: ' + result.posts.length +
                 '; deferred: ' + result.deferredPosts +
                 '; scan from: ' + result.scanFrom +
-                '; processed through: ' + result.processedThrough + '}'
+                '; target: ' + result.targetProcessedThrough +
+                '; processed through: ' + result.processedThrough +
+                '; pending after: ' + (result.pendingScan ? result.pendingScan.after : 'none') + '}'
             );
             var filterStats = storeNewPosts(storage, result.posts, subscriptions.byKey);
             newPostCount = filterStats.added;
@@ -638,11 +649,12 @@ var main = function() {
             acceptedPostCount = filterStats.accepted;
             if (result.requestLimitReached) {
                 logger.logInfo(
-                    'Reached maxRequests before finishing new-post pagination; keeping the previous processed-through boundary',
+                    'Reached maxRequests before finishing new-post pagination; saved a cursor for the next run',
                     'fetched mature posts: ' + result.posts.length +
                     '; new: ' + filterStats.added +
                     '; refreshed: ' + filterStats.refreshed +
-                    '; accepted: ' + filterStats.accepted
+                    '; accepted: ' + filterStats.accepted +
+                    '; resume after: ' + (result.pendingScan ? result.pendingScan.after : 'none')
                 );
             }
             logger.logDebug(util.format(
@@ -658,6 +670,7 @@ var main = function() {
             ));
             storage.before = null;
             storage.processedThrough = result.processedThrough;
+            storage.pendingScan = result.pendingScan;
             return publish(storage, subscriptions, changes).then(function() {
                 processedThrough = storage.processedThrough;
                 logger.logDebug('Persisted storage {processed through: ' + processedThrough + '}');

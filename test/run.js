@@ -373,13 +373,20 @@ var testStorageProcessedThrough = function() {
         'posts': {}
     });
     assert.strictEqual(legacyStorage.processedThrough, null);
+    assert.strictEqual(legacyStorage.pendingScan, null);
 
     var currentStorage = storageUtils.requireCurrentStorage({
         'before': null,
-        'processedThrough': 123,
+        'processedThrough': 100,
+        'pendingScan': {
+            'after': 't3_resume',
+            'scanFrom': 90,
+            'targetProcessedThrough': 123
+        },
         'posts': {}
     });
-    assert.strictEqual(currentStorage.processedThrough, 123);
+    assert.strictEqual(currentStorage.processedThrough, 100);
+    assert.strictEqual(currentStorage.pendingScan.after, 't3_resume');
 
     assert.throws(function() {
         storageUtils.requireCurrentStorage({
@@ -388,6 +395,32 @@ var testStorageProcessedThrough = function() {
             'posts': {}
         });
     }, /processedThrough must be a non-negative number or null/);
+
+    assert.throws(function() {
+        storageUtils.requireCurrentStorage({
+            'before': null,
+            'processedThrough': 100,
+            'pendingScan': {
+                'after': '',
+                'scanFrom': 90,
+                'targetProcessedThrough': 123
+            },
+            'posts': {}
+        });
+    }, /pendingScan.after must be a non-empty string/);
+
+    assert.throws(function() {
+        storageUtils.requireCurrentStorage({
+            'before': null,
+            'processedThrough': 100,
+            'pendingScan': {
+                'after': 't3_resume',
+                'scanFrom': 101,
+                'targetProcessedThrough': 123
+            },
+            'posts': {}
+        });
+    }, /pendingScan has inconsistent time boundaries/);
 };
 
 var testRefetchedPostReplacesStoredVersion = function() {
@@ -477,6 +510,7 @@ var testNewPostPagination = function() {
         assert.strictEqual(result.deferredPosts, 1);
         assert.strictEqual(result.scanFrom, 90);
         assert.strictEqual(result.processedThrough, 200);
+        assert.strictEqual(result.pendingScan, null);
         assert.strictEqual(result.scanCompleted, true);
         assert.strictEqual(result.requestLimitReached, false);
     });
@@ -503,6 +537,7 @@ var testInitialBackfillScansToListingEnd = function() {
         assert.deepStrictEqual(result.posts.map(function(post) { return post.created_utc; }), [1000, 900, 800]);
         assert.strictEqual(result.scanFrom, null);
         assert.strictEqual(result.processedThrough, 1000);
+        assert.strictEqual(result.pendingScan, null);
         assert.strictEqual(result.scanCompleted, true);
         assert.deepStrictEqual(requests, [
             {'limit': 100, 'show': 'all'},
@@ -539,19 +574,26 @@ var testNewPostRequestLimitPreservesBoundary = function() {
     }, function() {}, function() {}).then(function(firstResult) {
         assert.deepStrictEqual(firstResult.posts.map(function(post) { return post.created_utc; }), [200, 150]);
         assert.strictEqual(firstResult.processedThrough, 100);
+        assert.deepStrictEqual(firstResult.pendingScan, {
+            'after': 't3_second',
+            'scanFrom': 90,
+            'targetProcessedThrough': 200
+        });
         assert.strictEqual(firstResult.scanCompleted, false);
         assert.strictEqual(firstResult.requestLimitReached, true);
 
-        return fetchNewPosts(reddit, firstResult.processedThrough, 200, 10, function() {
+        var persistedPendingScan = JSON.parse(JSON.stringify(firstResult.pendingScan));
+        return fetchNewPosts(reddit, firstResult.processedThrough, 250, 10, function() {
             return true;
-        }, function() {}, function() {});
+        }, function() {}, function() {}, persistedPendingScan);
     }).then(function(secondResult) {
-        assert.deepStrictEqual(secondResult.posts.map(function(post) { return post.created_utc; }), [200, 150, 100, 90]);
+        assert.deepStrictEqual(secondResult.posts.map(function(post) { return post.created_utc; }), [100, 90]);
         assert.strictEqual(secondResult.processedThrough, 200);
+        assert.strictEqual(secondResult.targetProcessedThrough, 200);
+        assert.strictEqual(secondResult.pendingScan, null);
         assert.strictEqual(secondResult.scanCompleted, true);
         assert.strictEqual(secondResult.requestLimitReached, false);
         assert.deepStrictEqual(requests, [
-            {'limit': 100, 'show': 'all'},
             {'limit': 100, 'show': 'all'},
             {'limit': 100, 'show': 'all', 'after': 't3_second'},
             {'limit': 100, 'show': 'all', 'after': 't3_third'}
@@ -580,6 +622,7 @@ var testRecentPostsAreDeferred = function() {
         assert.strictEqual(result.posts[1].name, 't3_new_99');
         assert.strictEqual(result.deferredPosts, 1);
         assert.strictEqual(result.processedThrough, 100);
+        assert.strictEqual(result.pendingScan, null);
         assert.strictEqual(result.scanCompleted, true);
     });
 };
