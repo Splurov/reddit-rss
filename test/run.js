@@ -368,15 +368,13 @@ var testSubredditMinRules = function() {
 };
 
 var testStorageProcessedThrough = function() {
-    var legacyStorage = storageUtils.requireCurrentStorage({
-        'before': 't3_legacy',
+    var newStorage = storageUtils.requireCurrentStorage({
         'posts': {}
     });
-    assert.strictEqual(legacyStorage.processedThrough, null);
-    assert.strictEqual(legacyStorage.pendingScan, null);
+    assert.strictEqual(newStorage.processedThrough, null);
+    assert.strictEqual(newStorage.pendingScan, null);
 
     var currentStorage = storageUtils.requireCurrentStorage({
-        'before': null,
         'processedThrough': 100,
         'pendingScan': {
             'after': 't3_resume',
@@ -390,7 +388,6 @@ var testStorageProcessedThrough = function() {
 
     assert.throws(function() {
         storageUtils.requireCurrentStorage({
-            'before': null,
             'processedThrough': '123',
             'posts': {}
         });
@@ -398,7 +395,6 @@ var testStorageProcessedThrough = function() {
 
     assert.throws(function() {
         storageUtils.requireCurrentStorage({
-            'before': null,
             'processedThrough': 100,
             'pendingScan': {
                 'after': '',
@@ -411,7 +407,6 @@ var testStorageProcessedThrough = function() {
 
     assert.throws(function() {
         storageUtils.requireCurrentStorage({
-            'before': null,
             'processedThrough': 100,
             'pendingScan': {
                 'after': 't3_resume',
@@ -655,7 +650,6 @@ var testRedditClient = function() {
                 'body': JSON.stringify({
                     'data': {
                         'after': 't5_next',
-                        'before': null,
                         'children': [{
                             'data': {
                                 'name': 't5_javascript',
@@ -673,7 +667,6 @@ var testRedditClient = function() {
             'body': JSON.stringify({
                 'data': {
                     'after': 't3_next',
-                    'before': 't3_previous',
                     'children': [{
                         'data': makePost(1)
                     }]
@@ -686,7 +679,6 @@ var testRedditClient = function() {
         assert.strictEqual(subscriptions[0].display_name, 'javascript');
         assert.strictEqual(subscriptions[0].community_icon, 'https://styles.redditmedia.com/icon.png');
         assert.strictEqual(subscriptions.after, 't5_next');
-        assert.strictEqual(subscriptions.before, null);
         assert.strictEqual(requests[0].hostname, 'www.reddit.com');
         assert.strictEqual(requests[0].path, '/api/v1/access_token');
         assert.strictEqual(requests[0].headers.Authorization, 'Basic Y2xpZW50LWlkOmNsaWVudC1zZWNyZXQ=');
@@ -703,7 +695,6 @@ var testRedditClient = function() {
     }).then(function(posts) {
         assert.strictEqual(posts[0].name, 't3_new_1');
         assert.strictEqual(posts.after, 't3_next');
-        assert.strictEqual(posts.before, 't3_previous');
         assert.strictEqual(requests.length, 3);
         assert.strictEqual(requests[2].path, '/new?limit=100&show=all&after=t3_previous');
         assert.strictEqual(debugMessages[2], 'Request URL {url: https://oauth.reddit.com/new?limit=100&show=all&after=t3_previous}');
@@ -749,7 +740,6 @@ var testRedditClientRefreshesUnauthorizedToken = function() {
     return client.getNew({'limit': 100}).then(function(posts) {
         assert.strictEqual(posts.length, 0);
         assert.strictEqual(posts.after, null);
-        assert.strictEqual(posts.before, null);
         assert.strictEqual(requests.length, 4);
         assert.strictEqual(requests[1].headers.Authorization, 'Bearer expired-token');
         assert.strictEqual(requests[3].headers.Authorization, 'Bearer fresh-token');

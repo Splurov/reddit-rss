@@ -23,7 +23,6 @@ var newPostRequests = 0;
 var maxRequests;
 var maxTime;
 var overlapSeconds;
-var initialBackfillSeconds;
 var popularityGroups;
 var blacklistRe;
 var minRulesForSubs = {};
@@ -234,12 +233,6 @@ var initializeConfiguration = function() {
         throw new Error('overlapHours must be a non-negative number');
     }
     overlapSeconds = overlapHours * 3600;
-
-    var initialBackfillHours = config.initialBackfillHours === undefined ? 24 : Number(config.initialBackfillHours);
-    if (!isFinite(initialBackfillHours) || initialBackfillHours < 0) {
-        throw new Error('initialBackfillHours must be a non-negative number');
-    }
-    initialBackfillSeconds = initialBackfillHours * 3600;
 
     var blacklistStrings = Array.isArray(config.blacklistStrings) ? config.blacklistStrings : [];
     blacklistRe = blacklistStrings.length > 0 ? new RegExp('(?:' + blacklistStrings.map(function(string) {
@@ -598,7 +591,7 @@ var main = function() {
         storage = storageUtils.requireCurrentStorage(readJsonFile(config.storageFilePath, false));
         processedThrough = storage.processedThrough;
         if (processedThrough === null) {
-            processedThrough = Math.max(0, maxTime - initialBackfillSeconds);
+            processedThrough = maxTime;
             storage.processedThrough = processedThrough;
         }
         cachedSubreddits = getCachedSubreddits(readJsonFile(config.subscriptionsCacheFilePath, true));
@@ -618,12 +611,6 @@ var main = function() {
         changes.hasChanges = changes.added.length > 0 || changes.removed.length > 0;
         changes.writeOpml = isFirstRun || changes.hasChanges;
 
-        if (storage.before) {
-            logger.logInfo(
-                'Migrating from the legacy cursor; backfilling the configured initial window',
-                'scan from: ' + Math.max(0, processedThrough - overlapSeconds) + '; target: ' + maxTime
-            );
-        }
         if (storage.pendingScan) {
             logger.logInfo(
                 'Continuing an incomplete new-post scan',
@@ -649,7 +636,7 @@ var main = function() {
             acceptedPostCount = filterStats.accepted;
             if (result.requestLimitReached) {
                 logger.logInfo(
-                    'Reached maxRequests before finishing new-post pagination; saved a cursor for the next run',
+                    'Reached maxRequests without finishing new-post pagination; saved a cursor for the next run',
                     'fetched mature posts: ' + result.posts.length +
                     '; new: ' + filterStats.added +
                     '; refreshed: ' + filterStats.refreshed +
@@ -668,7 +655,6 @@ var main = function() {
                 filterStats.blacklisted,
                 filterStats.notSubscribed
             ));
-            storage.before = null;
             storage.processedThrough = result.processedThrough;
             storage.pendingScan = result.pendingScan;
             return publish(storage, subscriptions, changes).then(function() {

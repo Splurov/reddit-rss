@@ -33,7 +33,7 @@ Subreddit names are case-insensitive and may include the `r/` prefix. A rule nee
 
 The first successful run creates the OPML and a cache of subscriptions. Later, when subscriptions change, the script creates or removes RSS files, rewrites the OPML and sends one notification to `mailTo`. The notification includes direct URLs for newly added RSS feeds as well as the OPML URL. If subscriptions do not change, the OPML is left untouched.
 
-`maxRequests` limits only the number of Reddit pages fetched for new posts; loading the full subscription list does not consume this limit. When that limit is reached, fetched posts and the next Reddit `after` cursor are saved, but the completed time boundary is not advanced. The next manual or scheduled run continues the same fixed time window from that cursor. Once the old boundary is reached, the cursor is cleared and the following run processes posts that arrived during recovery. The script also sends a notification to `mailTo`. A legacy storage file without `processedThrough` triggers a one-time backfill of `initialBackfillHours` (24 hours by default) plus the overlap window; the old `before` cursor is then cleared.
+`maxRequests` limits only the number of Reddit pages fetched for new posts; loading the full subscription list does not consume this limit. When that limit is reached, fetched posts and the next Reddit `after` cursor are saved, but the completed time boundary is not advanced. The next manual or scheduled run continues the same fixed time window from that cursor. Once the old boundary is reached, the cursor is cleared and the following run processes posts that arrived during recovery. The script also sends a notification to `mailTo`.
  
 ## Links
 
