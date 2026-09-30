@@ -6,7 +6,7 @@ var makeRss = require('../lib/make-rss');
 var makeOpml = require('../lib/make-opml');
 var fetchNewPosts = require('../lib/fetch-new-posts');
 var RedditClient = require('../lib/reddit-client');
-var subredditMinRules = require('../lib/min-rules');
+var subredditRules = require('../lib/subreddit-rules');
 var storageUtils = require('../lib/storage');
 var nodemailer = require('nodemailer');
 
@@ -39,6 +39,14 @@ var testRssAndOpml = function() {
     assert(rss.indexOf('<item>') !== -1);
     assert(rss.indexOf('<author>example_author</author>') !== -1);
     assert(rss.indexOf('<author>javascript</author>') === -1);
+    assert(rss.indexOf('<title>javascript / A post (3 | +12)</title>') !== -1);
+    var flairPost = Object.assign({}, posts[0], {'link_flair_text': 'News & Updates'});
+    var rssWithFlair = makeRss('javascript', [flairPost]);
+    assert(rssWithFlair.indexOf('<title>javascript / News &amp; Updates / A post (3 | +12)</title>') !== -1);
+    var rssWithEmptyFlair = makeRss('javascript', [Object.assign({}, posts[0], {'link_flair_text': ''})]);
+    assert(rssWithEmptyFlair.indexOf('<title>javascript / A post (3 | +12)</title>') !== -1);
+    var rssWithNullFlair = makeRss('javascript', [Object.assign({}, posts[0], {'link_flair_text': null})]);
+    assert(rssWithNullFlair.indexOf('<title>javascript / A post (3 | +12)</title>') !== -1);
     assert.strictEqual(posts[0].name, 't3_example');
 
     var opml = makeOpml([
@@ -348,23 +356,57 @@ var testDependencyApis = function() {
     assert.strictEqual(typeof transporter.sendMail, 'function');
 };
 
-var testSubredditMinRules = function() {
-    var rulesBySubreddit = subredditMinRules.normalize({
-        'r/JavaScript': {'minScore': 20, 'minComments': 5}
+var testSubredditRules = function() {
+    var rulesBySubreddit = subredditRules.normalize({
+        'r/JavaScript': {'minScore': 20, 'minComments': 5, 'excludeLinkFlairs': ['Help', 'News & Updates']},
+        'r/node': {'excludeLinkFlairs': ['Meme']},
+        'r/lowThreshold': {'minScore': 1, 'minComments': 0}
     });
     var defaultRules = {'minScore': 7, 'minComments': 12};
 
-    assert.deepStrictEqual(rulesBySubreddit, {
-        'javascript': {'minScore': 20, 'minComments': 5}
+    assert.deepStrictEqual(Object.keys(rulesBySubreddit).sort(), ['javascript', 'lowthreshold', 'node']);
+    assert.deepStrictEqual(subredditRules.getForSubreddit(rulesBySubreddit, 'javascript', defaultRules), {
+        'minScore': 20, 'minComments': 5, 'excludeLinkFlairs': ['Help', 'News & Updates']
     });
-    assert.strictEqual(subredditMinRules.getForSubreddit(rulesBySubreddit, 'javascript', defaultRules), rulesBySubreddit.javascript);
-    assert.strictEqual(subredditMinRules.getForSubreddit(rulesBySubreddit, 'node', defaultRules), defaultRules);
+    assert.deepStrictEqual(subredditRules.getForSubreddit(rulesBySubreddit, 'node', defaultRules), {
+        'minScore': 7, 'minComments': 12, 'excludeLinkFlairs': ['Meme']
+    });
+    assert.deepStrictEqual(subredditRules.getForSubreddit(rulesBySubreddit, 'lowthreshold', defaultRules), {
+        'minScore': 1, 'minComments': 0, 'excludeLinkFlairs': []
+    });
+    assert.deepStrictEqual(subredditRules.getForSubreddit(rulesBySubreddit, 'other', defaultRules), {
+        'minScore': 7, 'minComments': 12, 'excludeLinkFlairs': []
+    });
+
+    var javascriptRules = subredditRules.getForSubreddit(rulesBySubreddit, 'javascript', defaultRules);
+    var nodeRules = subredditRules.getForSubreddit(rulesBySubreddit, 'node', defaultRules);
+    assert.strictEqual(subredditRules.isExcludedLinkFlair({'link_flair_text': 'Help'}, javascriptRules), true);
+    assert.strictEqual(subredditRules.isExcludedLinkFlair({'link_flair_text': 'Help'}, nodeRules), false);
+    assert.strictEqual(subredditRules.isExcludedLinkFlair({'link_flair_text': 'Meme'}, nodeRules), true);
+    assert.strictEqual(subredditRules.isExcludedLinkFlair({'link_flair_text': 'help'}, javascriptRules), false);
+    assert.strictEqual(subredditRules.isExcludedLinkFlair({'link_flair_text': null}, javascriptRules), false);
+    assert.deepStrictEqual(subredditRules.filterExcludedLinkFlairs([
+        {'link_flair_text': 'Help'}, {'link_flair_text': 'News'}, {'link_flair_text': null}
+    ], javascriptRules), [{'link_flair_text': 'News'}, {'link_flair_text': null}]);
+
     assert.throws(function() {
-        subredditMinRules.normalize({'javascript': {'minScore': 20}});
+        subredditRules.normalize({'javascript': {'minScore': 20}});
     }, /minComments is required/);
     assert.throws(function() {
-        subredditMinRules.normalize({'javascript': {'minScore': -1, 'minComments': 5}});
+        subredditRules.normalize({'javascript': {'minScore': -1, 'minComments': 5}});
     }, /minScore must be a non-negative number/);
+    assert.throws(function() {
+        subredditRules.normalize({'javascript': {'excludeLinkFlairs': 'Help'}});
+    }, /excludeLinkFlairs must be an array/);
+    assert.throws(function() {
+        subredditRules.normalize({'javascript': {'excludeLinkFlairs': ['']}});
+    }, /excludeLinkFlairs must be an array/);
+    assert.throws(function() {
+        subredditRules.normalize({'javascript': {'excludeFlairs': ['Help']}});
+    }, /unknown rule: excludeFlairs/);
+    assert.throws(function() {
+        subredditRules.normalize({'javascript': {}, 'r/JavaScript': {}});
+    }, /Duplicate subreddit rule/);
 };
 
 var testStorageProcessedThrough = function() {
@@ -748,7 +790,7 @@ var testRedditClientRefreshesUnauthorizedToken = function() {
 
 testRssAndOpml();
 testDependencyApis();
-testSubredditMinRules();
+testSubredditRules();
 testStorageProcessedThrough();
 testRefetchedPostReplacesStoredVersion();
 Promise.all([

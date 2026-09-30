@@ -19,15 +19,22 @@ reddit-rss generates a separate RSS feed for every subreddit you follow and an O
 
 ## Post filters
 
-`minScore` and `minComments` set the default threshold for each subscriber-count group. A post is included when it meets either threshold. Use `minRulesForSubs` to override both thresholds for an individual subreddit:
+`minScore` and `minComments` set the default threshold for each subscriber-count group. A post is included when it meets either threshold. Use `rulesForSubs` to override both thresholds or exclude posts by their `link_flair_text` for an individual subreddit:
 
 ```json
-"minRulesForSubs": {
-  "r/javascript": {"minScore": 20, "minComments": 5}
+"rulesForSubs": {
+  "r/javascript": {
+    "minScore": 20,
+    "minComments": 5,
+    "excludeLinkFlairs": ["Help", "Question"]
+  },
+  "r/node": {"excludeLinkFlairs": ["Meme"]}
 }
 ```
 
-Subreddit names are case-insensitive and may include the `r/` prefix. A rule needs both values, which must be non-negative numbers. For example, `{"minScore": 1, "minComments": 0}` preserves the former behavior of accepting every post with a positive score.
+Subreddit names are case-insensitive and may include the `r/` prefix. To override thresholds, provide both values as non-negative numbers. A flair-only rule uses the default thresholds. `excludeLinkFlairs` contains exact, case-sensitive `link_flair_text` values; posts without flair do not match. Excluded posts are omitted from RSS on the next run, including posts already in storage. For example, `{"minScore": 1, "minComments": 0}` accepts every post with a positive score.
+
+An RSS item title is `subreddit / flair / title` when `link_flair_text` is present, or `subreddit / title` otherwise. The existing comment and score counts follow the title.
 
 `maxHoursAgo` delays the first rating check for a post. Every run starts at the top of Reddit's `/new` listing and paginates toward older posts with `after`. `overlapHours` adds a repeated lookback window beyond the previously completed boundary, so posts that gain enough score or comments later can still enter RSS. It defaults to 6 hours when omitted.
 

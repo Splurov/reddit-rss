@@ -15,7 +15,7 @@
         "250000": 18,
         "1000000": 19
     },
-    "minRulesForSubs": {},
+    "rulesForSubs": {},
     "maxRequests": 20,
     "maxHoursAgo": 23,
     "overlapHours": 6,
