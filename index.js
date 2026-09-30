@@ -493,6 +493,16 @@ var sendEmail = function(subject, text, successMessage) {
     });
 };
 
+var formatSubscriptionChangeGroup = function(label, subreddits) {
+    if (!subreddits.length) {
+        return label + ': none';
+    }
+
+    return label + ':\n' + subreddits.map(function(subreddit) {
+        return '- r/' + subreddit;
+    }).join('\n');
+};
+
 var sendSubscriptionChangeEmail = function(changes) {
     if (!config.mailSmtpTransportUrl) {
         logger.logInfo('Subscriptions changed, but SMTP is not configured');
@@ -502,8 +512,9 @@ var sendSubscriptionChangeEmail = function(changes) {
     var textParts = [
         'Your Reddit RSS subscription list changed.',
         '',
-        'Added: ' + (changes.added.length ? changes.added.map(function(subreddit) { return 'r/' + subreddit; }).join(', ') : 'none'),
-        'Removed: ' + (changes.removed.length ? changes.removed.map(function(subreddit) { return 'r/' + subreddit; }).join(', ') : 'none')
+        formatSubscriptionChangeGroup('Added', changes.added),
+        '',
+        formatSubscriptionChangeGroup('Removed', changes.removed)
     ];
 
     if (changes.added.length) {
