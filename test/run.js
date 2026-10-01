@@ -275,6 +275,12 @@ var testDependencyApis = function() {
     assert(rssWithOriginalAndCrosspost.indexOf('5 — crosspostsub') !== -1);
     assert.strictEqual((rssWithOnlyCrosspost.match(/<item>/g) || []).length, 0);
 
+    var rssBeforeOriginalIsStored = makeRss('crosspostsub', [crosspost], null, {
+        'originalsub': [],
+        'crosspostsub': [crosspost]
+    });
+    assert.strictEqual((rssBeforeOriginalIsStored.match(/<item>/g) || []).length, 0);
+
     var sameLinkPost = {
         'name': 't3_same_link',
         'id': 'same_link',
