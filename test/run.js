@@ -489,6 +489,7 @@ var testCrosspostSelection = function() {
                 assert(result.feeds.originalsub.indexOf('Original body') !== -1);
                 assert(result.feeds.originalsub.indexOf('https://reddit.com' + crosspost.permalink) !== -1);
                 assert.strictEqual(result.storage.posts.originalsub[0].score, parent.score);
+                assert.strictEqual(result.stats.originalsAdded, 1);
             });
         });
     });
@@ -535,11 +536,16 @@ var testCrosspostSelection = function() {
     var freshRejectedParent = select([excludedParent, makeCrosspost(qualifyingParent, {'score': 1})]);
     assert.strictEqual(itemCount(freshRejectedParent, 'originalsub'), 0);
 
-    // Restore originals for previously stored crossposts, even with an empty /new page.
+    // Old crossposts must not trigger a historical backfill on an unrelated or empty scan.
     var oldStorage = {'posts': {'crosspostsub': [makeCrosspost(excludedParent)]}};
-    var restored = select([], oldStorage);
+    var unchanged = select([], oldStorage);
+    assert.strictEqual(itemCount(unchanged, 'originalsub'), 0);
+    assert.strictEqual(unchanged.stats.added, 0);
+    // A freshly fetched original can still qualify through a previously stored crosspost.
+    var restored = select([excludedParent], oldStorage);
     assert.strictEqual(itemCount(restored, 'originalsub'), 1);
     assert.strictEqual(itemCount(restored, 'crosspostsub'), 0);
+    assert.strictEqual(restored.stats.originalsAdded, 1);
     var allFlairsExcluded = Object.assign({}, options, {'rulesForSubs': subredditRules.normalize({
         'originalsub': {'excludeLinkFlairs': ['Help']},
         'crosspostsub': {'excludeLinkFlairs': ['Meme', 'News']}
@@ -566,6 +572,43 @@ var testCrosspostSelection = function() {
 
     var standalone = select([makeCrosspost(original)], null, {'crosspostsub': subscriptions.crosspostsub});
     assert.strictEqual(itemCount(standalone, 'crosspostsub'), 1);
+};
+
+var testNoHistoricalCrosspostBackfill = function() {
+    var options = {'minScore': [10], 'minComments': [3], 'rulesForSubs': {}};
+    var subscriptions = {
+        'originalsub': {'popularityGroup': 0},
+        'crosspostsub': {'popularityGroup': 0}
+    };
+    var storage = {'posts': {'crosspostsub': [], 'originalsub': []}};
+    for (var i = 0; i < 189; i++) {
+        var parent = Object.assign({}, posts[0], {
+            'name': 't3_parent_' + i, 'id': 'parent_' + i, 'subreddit': 'originalsub',
+            'created_utc': 100 + i
+        });
+        storage.posts.crosspostsub.push(Object.assign({}, posts[0], {
+            'name': 't3_cross_' + i, 'id': 'cross_' + i, 'subreddit': 'crosspostsub',
+            'created_utc': 200 + i, 'crosspost_parent_list': [parent]
+        }));
+    }
+    var incoming = [];
+    for (var j = 0; j < 26; j++) {
+        var regularPost = Object.assign({}, posts[0], {
+            'name': 't3_regular_' + j, 'id': 'regular_' + j, 'subreddit': 'originalsub',
+            'created_utc': 300 + j
+        });
+        storage.posts.originalsub.push(regularPost);
+        incoming.push(Object.assign({}, regularPost, {'score': 13}));
+    }
+    var stats = postSelection.storeNewPosts(storage, incoming, subscriptions, options);
+    assert.strictEqual(stats.accepted, 26);
+    assert.strictEqual(stats.refreshed, 26);
+    assert.strictEqual(stats.added, 0);
+    assert.strictEqual(stats.originalsAdded, 0);
+    assert.strictEqual(storage.posts.originalsub.length, 26);
+    var nextStats = postSelection.storeNewPosts(storage, [], subscriptions, options);
+    assert.strictEqual(nextStats.added, 0);
+    assert.strictEqual(nextStats.refreshed, 0);
 };
 
 var testStorageProcessedThrough = function() {
@@ -951,6 +994,7 @@ testRssAndOpml();
 testDependencyApis();
 testSubredditRules();
 testCrosspostSelection();
+testNoHistoricalCrosspostBackfill();
 testStorageProcessedThrough();
 testRefetchedPostReplacesStoredVersion();
 Promise.all([

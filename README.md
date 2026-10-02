@@ -36,6 +36,8 @@ Subreddit names are case-insensitive and may include the `r/` prefix. To overrid
 
 When the original subreddit is subscribed, crossposts appear only in the original's feed. The original is included if it or any known crosspost passes its own subreddit's score/comments/flair rules, even if the original has not arrived in `/new` yet. In that case, the original's data comes from `crosspost_parent_list`; a fetched original takes precedence. Deleted or blacklisted originals remain excluded. If the original subreddit is not subscribed, a qualifying crosspost stays in its own feed.
 
+Originals are added or refreshed through this rule only when the original or a crosspost is fetched in the current scan. Stored crossposts provide context for that scan; unrelated historical groups are not backfilled. The log's `new posts` counts additions to storage, including originals added via crossposts. `accepted` counts fetched posts passing their own filters, and `originals added via crossposts` reports that subset of the additions separately.
+
 An RSS item title is `subreddit / title`, followed by the comment and score counts. When `link_flair_text` is present, the description starts with a separate paragraph containing `[flair]`.
 
 `maxHoursAgo` delays the first rating check for a post. Every run starts at the top of Reddit's `/new` listing and paginates toward older posts with `after`. `overlapHours` adds a repeated lookback window beyond the previously completed boundary, so posts that gain enough score or comments later can still enter RSS. It defaults to 6 hours when omitted.

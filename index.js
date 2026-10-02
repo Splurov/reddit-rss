@@ -455,6 +455,7 @@ var sendRequestLimitEmail = function(result, filterStats) {
         'Fetched mature posts: ' + result.posts.length,
         'Posts accepted by filters: ' + filterStats.accepted,
         'New stored posts: ' + filterStats.added,
+        'Of those, originals added via crossposts: ' + filterStats.originalsAdded,
         'Refreshed stored posts: ' + filterStats.refreshed,
         'Processed through remains: ' + result.processedThrough,
         'Target processed through: ' + result.targetProcessedThrough,
@@ -513,6 +514,7 @@ var main = function() {
     var newPostCount = 0;
     var refreshedPostCount = 0;
     var acceptedPostCount = 0;
+    var originalsAddedCount = 0;
 
     try {
         initializeConfiguration();
@@ -567,20 +569,23 @@ var main = function() {
             newPostCount = filterStats.added;
             refreshedPostCount = filterStats.refreshed;
             acceptedPostCount = filterStats.accepted;
+            originalsAddedCount = filterStats.originalsAdded;
             if (result.requestLimitReached) {
                 logger.logInfo(
                     'Reached maxRequests without finishing new-post pagination; saved a cursor for the next run',
                     'fetched mature posts: ' + result.posts.length +
                     '; new: ' + filterStats.added +
+                    '; originals added via crossposts: ' + filterStats.originalsAdded +
                     '; refreshed: ' + filterStats.refreshed +
                     '; accepted: ' + filterStats.accepted +
                     '; resume after: ' + (result.pendingScan ? result.pendingScan.after : 'none')
                 );
             }
             logger.logDebug(util.format(
-                'Post filter {accepted: %s; new: %s; refreshed: %s; below threshold: %s; non-positive score: %s; deleted: %s; blacklisted: %s; excluded flair: %s; not subscribed: %s}',
+                'Post filter {accepted: %s; new: %s; originals added via crossposts: %s; refreshed: %s; below threshold: %s; non-positive score: %s; deleted: %s; blacklisted: %s; excluded flair: %s; not subscribed: %s}',
                 filterStats.accepted,
                 filterStats.added,
+                filterStats.originalsAdded,
                 filterStats.refreshed,
                 filterStats.belowThreshold,
                 filterStats.nonPositiveScore,
@@ -604,7 +609,8 @@ var main = function() {
     }).then(function() {
         logger.logInfo(
             'Successfully updated',
-            'new posts: ' + newPostCount + '; refreshed: ' + refreshedPostCount + '; accepted: ' + acceptedPostCount
+            'new posts: ' + newPostCount + '; refreshed: ' + refreshedPostCount + '; accepted: ' + acceptedPostCount +
+            '; originals added via crossposts: ' + originalsAddedCount
         );
     }).catch(function(error) {
         logger.logError(error.message || String(error));
