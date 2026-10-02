@@ -42,11 +42,14 @@ var testRssAndOpml = function() {
     assert(rss.indexOf('<title>javascript / A post (3 | +12)</title>') !== -1);
     var flairPost = Object.assign({}, posts[0], {'link_flair_text': 'News & Updates'});
     var rssWithFlair = makeRss('javascript', [flairPost]);
-    assert(rssWithFlair.indexOf('<title>javascript / News &amp; Updates / A post (3 | +12)</title>') !== -1);
+    assert(rssWithFlair.indexOf('<title>javascript / A post (3 | +12)</title>') !== -1);
+    assert(rssWithFlair.indexOf('<description>&lt;p&gt;[News &amp;amp; Updates]&lt;/p&gt;') !== -1);
     var rssWithEmptyFlair = makeRss('javascript', [Object.assign({}, posts[0], {'link_flair_text': ''})]);
     assert(rssWithEmptyFlair.indexOf('<title>javascript / A post (3 | +12)</title>') !== -1);
+    assert(rssWithEmptyFlair.indexOf('&lt;p&gt;[]&lt;/p&gt;') === -1);
     var rssWithNullFlair = makeRss('javascript', [Object.assign({}, posts[0], {'link_flair_text': null})]);
     assert(rssWithNullFlair.indexOf('<title>javascript / A post (3 | +12)</title>') !== -1);
+    assert(rssWithNullFlair.indexOf('&lt;p&gt;[null]&lt;/p&gt;') === -1);
     assert.strictEqual(posts[0].name, 't3_example');
 
     var opml = makeOpml([

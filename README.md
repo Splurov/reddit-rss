@@ -34,7 +34,7 @@ reddit-rss generates a separate RSS feed for every subreddit you follow and an O
 
 Subreddit names are case-insensitive and may include the `r/` prefix. To override thresholds, provide both values as non-negative numbers. A flair-only rule uses the default thresholds. `excludeLinkFlairs` contains exact, case-sensitive `link_flair_text` values; posts without flair do not match. Excluded posts are omitted from RSS on the next run, including posts already in storage. For example, `{"minScore": 1, "minComments": 0}` accepts every post with a positive score.
 
-An RSS item title is `subreddit / flair / title` when `link_flair_text` is present, or `subreddit / title` otherwise. The existing comment and score counts follow the title.
+An RSS item title is `subreddit / title`, followed by the comment and score counts. When `link_flair_text` is present, the description starts with a separate paragraph containing `[flair]`.
 
 `maxHoursAgo` delays the first rating check for a post. Every run starts at the top of Reddit's `/new` listing and paginates toward older posts with `after`. `overlapHours` adds a repeated lookback window beyond the previously completed boundary, so posts that gain enough score or comments later can still enter RSS. It defaults to 6 hours when omitted.
 
