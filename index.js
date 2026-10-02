@@ -12,6 +12,7 @@ var fetchNewPosts = require('./lib/fetch-new-posts');
 var RedditClient = require('./lib/reddit-client');
 var storageUtils = require('./lib/storage');
 var subredditRules = require('./lib/subreddit-rules');
+var postSelection = require('./lib/post-selection');
 
 var packageJson = require('./package.json');
 var config = require('./config.json');
@@ -98,7 +99,6 @@ reddit = new RedditClient({
 
 var normalizeSubreddit = storageUtils.normalizeSubreddit;
 var isSafeSubredditName = storageUtils.isSafeSubredditName;
-var sortAndLimitPosts = storageUtils.sortAndLimitPosts;
 
 var getRssFilename = function(subreddit) {
     if (!isSafeSubredditName(subreddit)) {
@@ -373,116 +373,6 @@ var compareSubscriptions = function(cachedSubreddits, currentSubreddits) {
     };
 };
 
-var isEligiblePost = function(post, subscriptionsByKey, stats) {
-    var subreddit = normalizeSubreddit(post.subreddit);
-    var subscription = subreddit && subscriptionsByKey[subreddit];
-    if (!subscription) {
-        stats.notSubscribed++;
-        return false;
-    }
-
-    if (blacklistRe && blacklistRe.test(post.title || '')) {
-        stats.blacklisted++;
-        return false;
-    }
-    if (post.selftext === '[deleted]') {
-        stats.deleted++;
-        return false;
-    }
-
-    var rules = subredditRules.getForSubreddit(rulesForSubs, subreddit, {
-        'minScore': config.minScore[subscription.popularityGroup],
-        'minComments': config.minComments[subscription.popularityGroup]
-    });
-    if (subredditRules.isExcludedLinkFlair(post, rules)) {
-        stats.excludedLinkFlair++;
-        return false;
-    }
-    if (post.score <= 0) {
-        stats.nonPositiveScore++;
-        return false;
-    }
-    if (post.score >= rules.minScore || post.num_comments >= rules.minComments) {
-        stats.accepted++;
-        return true;
-    }
-
-    stats.belowThreshold++;
-    return false;
-};
-
-var storeNewPosts = function(storage, posts, subscriptionsByKey) {
-    var storedPostKeys = {};
-    Object.keys(storage.posts).forEach(function(subreddit) {
-        var storedPosts = storage.posts[subreddit];
-        if (!Array.isArray(storedPosts)) {
-            return;
-        }
-        storedPosts.forEach(function(post) {
-            var key = post && (post.name || post.id);
-            if (key) {
-                storedPostKeys['$' + key] = post;
-            }
-        });
-    });
-
-    var stats = {
-        'accepted': 0,
-        'added': 0,
-        'refreshed': 0,
-        'notSubscribed': 0,
-        'blacklisted': 0,
-        'deleted': 0,
-        'excludedLinkFlair': 0,
-        'nonPositiveScore': 0,
-        'belowThreshold': 0
-    };
-
-    posts.forEach(function(post) {
-        if (!post) {
-            return;
-        }
-        if (!isEligiblePost(post, subscriptionsByKey, stats)) {
-            var rejectedSubreddit = normalizeSubreddit(post.subreddit);
-            var rejectedPostKey = post.name || post.id;
-            var previousPost = rejectedPostKey && storedPostKeys['$' + rejectedPostKey];
-            var flairRules = rulesForSubs[rejectedSubreddit];
-            if (previousPost && flairRules && Array.isArray(storage.posts[rejectedSubreddit]) &&
-                (subredditRules.isExcludedLinkFlair(post, flairRules) ||
-                    subredditRules.isExcludedLinkFlair(previousPost, flairRules))) {
-                storage.posts[rejectedSubreddit].push(post);
-                storedPostKeys['$' + rejectedPostKey] = post;
-            }
-            return;
-        }
-
-        var subreddit = normalizeSubreddit(post.subreddit);
-        if (!storage.posts[subreddit]) {
-            storage.posts[subreddit] = [];
-        }
-
-        var postKey = post.name || post.id;
-        if (postKey && storedPostKeys['$' + postKey]) {
-            stats.refreshed++;
-        } else {
-            stats.added++;
-        }
-        if (postKey) {
-            storedPostKeys['$' + postKey] = post;
-        }
-        storage.posts[subreddit].push(post);
-    });
-
-    Object.keys(storage.posts).forEach(function(subreddit) {
-        storage.posts[subreddit] = sortAndLimitPosts(storage.posts[subreddit]);
-        if (!subscriptionsByKey[subreddit]) {
-            delete storage.posts[subreddit];
-        }
-    });
-
-    return stats;
-};
-
 var makeSubscriptionsCache = function(subreddits) {
     return {
         'subreddits': subreddits.map(function(subreddit) {
@@ -578,13 +468,9 @@ var sendRequestLimitEmail = function(result, filterStats) {
 };
 
 var publish = function(storage, subscriptions, changes) {
-    var visiblePostsBySubreddit = Object.create(null);
-    subscriptions.list.forEach(function(subscription) {
-        var subreddit = subscription.key;
-        visiblePostsBySubreddit[subreddit] = subredditRules.filterExcludedLinkFlairs(
-            storage.posts[subreddit] || [], rulesForSubs[subreddit] || {}
-        );
-    });
+    var visiblePostsBySubreddit = postSelection.getVisiblePostsBySubreddit(
+        storage, subscriptions.byKey, rulesForSubs
+    );
 
     subscriptions.list.forEach(function(subscription) {
         var content = makeRss(
@@ -672,7 +558,12 @@ var main = function() {
                 '; processed through: ' + result.processedThrough +
                 '; pending after: ' + (result.pendingScan ? result.pendingScan.after : 'none') + '}'
             );
-            var filterStats = storeNewPosts(storage, result.posts, subscriptions.byKey);
+            var filterStats = postSelection.storeNewPosts(storage, result.posts, subscriptions.byKey, {
+                'rulesForSubs': rulesForSubs,
+                'minScore': config.minScore,
+                'minComments': config.minComments,
+                'blacklistRe': blacklistRe
+            });
             newPostCount = filterStats.added;
             refreshedPostCount = filterStats.refreshed;
             acceptedPostCount = filterStats.accepted;
