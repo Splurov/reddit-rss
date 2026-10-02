@@ -26,7 +26,8 @@ var posts = [{
 
 var testRssAndOpml = function() {
     var emptyRss = makeRss('javascript', []);
-    assert(emptyRss.indexOf('<title>reddit / r/javascript</title>') !== -1);
+    assert(emptyRss.indexOf('<channel>\n    <title>r/javascript</title>') !== -1);
+    assert.strictEqual(emptyRss.split('<title>r/javascript</title>').length - 1, 2);
     assert(emptyRss.indexOf('<item>') === -1);
     assert(emptyRss.indexOf('<url>https://www.redditstatic.com/shreddit/assets/favicon/192x192.png</url>') !== -1);
     assert(emptyRss.indexOf('<rss version="2.0">\n  <channel>') !== -1);
@@ -65,7 +66,7 @@ var testRssAndOpml = function() {
 
 var testDependencyApis = function() {
     var escapedRss = makeRss('node&xml', []);
-    assert(escapedRss.indexOf('<title>reddit / r/node&amp;xml</title>') !== -1);
+    assert(escapedRss.indexOf('<title>r/node&amp;xml</title>') !== -1);
 
     var rssWithHtml = makeRss('javascript', [{
         'name': 't3_entities',
